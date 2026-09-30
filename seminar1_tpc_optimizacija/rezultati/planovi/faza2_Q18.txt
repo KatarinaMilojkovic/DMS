@@ -1,0 +1,76 @@
+-- Faza 2 (Indeksi), upit Q18 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, SUM(l_quantity)
+FROM customer, orders, lineitem
+WHERE o_orderkey IN (SELECT l_orderkey
+                     FROM lineitem
+                     GROUP BY l_orderkey
+                     HAVING SUM(l_quantity) > 300)
+  AND c_custkey = o_custkey
+  AND o_orderkey = l_orderkey
+GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice
+ORDER BY o_totalprice DESC, o_orderdate
+LIMIT 100
+
+Limit  (cost=278204.09..278204.34 rows=100 width=71) (actual time=554.529..562.706 rows=12.00 loops=1)
+  Buffers: shared hit=80598 read=44702
+  ->  Sort  (cost=278204.09..279303.23 rows=439654 width=71) (actual time=554.529..562.704 rows=12.00 loops=1)
+        Sort Key: orders.o_totalprice DESC, orders.o_orderdate
+        Sort Method: quicksort  Memory: 25kB
+        Buffers: shared hit=80598 read=44702
+        ->  GroupAggregate  (cost=154918.98..261400.83 rows=439654 width=71) (actual time=554.507..562.693 rows=12.00 loops=1)
+              Group Key: customer.c_custkey, orders.o_orderkey
+              Buffers: shared hit=80598 read=44702
+              ->  Gather Merge  (cost=154918.98..252607.75 rows=439654 width=44) (actual time=554.498..562.676 rows=84.00 loops=1)
+                    Workers Planned: 2
+                    Workers Launched: 2
+                    Buffers: shared hit=80598 read=44702
+                    ->  Incremental Sort  (cost=153918.96..200860.75 rows=183189 width=44) (actual time=541.295..541.458 rows=28.00 loops=3)
+                          Sort Key: customer.c_custkey, orders.o_orderkey
+                          Presorted Key: customer.c_custkey
+                          Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 25kB  Peak Memory: 25kB
+                          Buffers: shared hit=80598 read=44702
+                          Worker 0:  Full-sort Groups: 2  Sort Method: quicksort  Average Memory: 27kB  Peak Memory: 27kB
+                          Worker 1:  Full-sort Groups: 1  Sort Method: quicksort  Average Memory: 27kB  Peak Memory: 27kB
+                          ->  Nested Loop  (cost=153917.99..195815.79 rows=183189 width=44) (actual time=540.271..541.415 rows=28.00 loops=3)
+                                Buffers: shared hit=80535 read=44699
+                                ->  Merge Join  (cost=153917.56..154829.51 rows=45797 width=43) (actual time=540.242..541.342 rows=4.00 loops=3)
+                                      Merge Cond: (orders.o_custkey = customer.c_custkey)
+                                      Buffers: shared hit=80507 read=44676
+                                      ->  Sort  (cost=149123.59..149238.08 rows=45797 width=24) (actual time=536.839..536.841 rows=4.00 loops=3)
+                                            Sort Key: orders.o_custkey
+                                            Sort Method: quicksort  Memory: 25kB
+                                            Buffers: shared hit=79642 read=43810
+                                            Worker 0:  Sort Method: quicksort  Memory: 25kB
+                                            Worker 1:  Sort Method: quicksort  Memory: 25kB
+                                            ->  Hash Join  (cost=136497.04..145578.22 rows=45797 width=24) (actual time=531.159..536.832 rows=4.00 loops=3)
+                                                  Hash Cond: (orders.o_orderkey = lineitem_1.l_orderkey)
+                                                  Buffers: shared hit=79642 read=43810
+                                                  ->  Parallel Seq Scan on orders  (cost=0.00..8589.00 rows=187500 width=20) (actual time=0.024..4.534 rows=150000.00 loops=3)
+                                                        Buffers: shared hit=2 read=6712
+                                                  ->  Hash  (cost=135123.12..135123.12 rows=109913 width=4) (actual time=526.075..526.076 rows=12.00 loops=3)
+                                                        Buckets: 131072  Batches: 1  Memory Usage: 1025kB
+                                                        Buffers: shared hit=79640 read=37098
+                                                        ->  GroupAggregate  (cost=0.43..135123.12 rows=109913 width=4) (actual time=29.408..526.054 rows=12.00 loops=3)
+                                                              Group Key: lineitem_1.l_orderkey
+                                                              Filter: (sum(lineitem_1.l_quantity) > '300'::numeric)
+                                                              Rows Removed by Filter: 449988
+                                                              Buffers: shared hit=79640 read=37098
+                                                              ->  Index Scan using lineitem_pkey on lineitem lineitem_1  (cost=0.43..121176.99 rows=1800009 width=9) (actual time=0.027..342.728 rows=1800001.00 loops=3)
+                                                                    Index Searches: 3
+                                                                    Buffers: shared hit=79640 read=37098
+                                      ->  Sort  (cost=4793.97..4906.47 rows=45000 width=23) (actual time=4.858..5.645 rows=38066.50 loops=2)
+                                            Sort Key: customer.c_custkey
+                                            Buffers: shared hit=865 read=866
+                                            Worker 0:  Sort Method: quicksort  Memory: 3294kB
+                                            Worker 1:  Sort Method: quicksort  Memory: 3294kB
+                                            ->  Seq Scan on customer  (cost=0.00..1316.00 rows=45000 width=23) (actual time=0.088..2.126 rows=45000.00 loops=2)
+                                                  Buffers: shared hit=865 read=866
+                                ->  Index Scan using lineitem_pkey on lineitem  (cost=0.43..0.84 rows=5 width=9) (actual time=0.016..0.017 rows=7.00 loops=12)
+                                      Index Cond: (l_orderkey = orders.o_orderkey)
+                                      Index Searches: 12
+                                      Buffers: shared hit=28 read=23
+Planning:
+  Buffers: shared hit=11 read=19
+Planning Time: 0.527 ms
+Execution Time: 562.801 ms

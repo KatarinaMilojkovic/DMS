@@ -1,0 +1,33 @@
+-- Faza 2 (Indeksi), upit Q14 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT 100.00 * SUM(CASE WHEN p_type LIKE 'PROMO%'
+                         THEN l_extendedprice * (1 - l_discount) ELSE 0 END)
+       / SUM(l_extendedprice * (1 - l_discount)) AS promo_revenue
+FROM lineitem, part
+WHERE l_partkey = p_partkey
+  AND date_trunc('month', l_shipdate) = DATE '1995-09-01'
+
+Finalize Aggregate  (cost=48480.89..48480.91 rows=1 width=32) (actual time=140.173..144.202 rows=1.00 loops=1)
+  Buffers: shared hit=7820 read=25666
+  ->  Gather  (cost=48480.66..48480.87 rows=2 width=64) (actual time=139.904..144.189 rows=3.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=7820 read=25666
+        ->  Partial Aggregate  (cost=47480.66..47480.67 rows=1 width=64) (actual time=130.510..130.511 rows=1.00 loops=3)
+              Buffers: shared hit=7820 read=25666
+              ->  Parallel Hash Join  (cost=2099.12..47415.03 rows=3750 width=33) (actual time=2.917..129.237 rows=7434.33 loops=3)
+                    Hash Cond: (lineitem.l_partkey = part.p_partkey)
+                    Buffers: shared hit=7820 read=25666
+                    ->  Parallel Seq Scan on lineitem  (cost=0.00..45306.07 rows=3750 width=16) (actual time=0.083..123.938 rows=7434.33 loops=3)
+                          Filter: (date_trunc('month'::text, (l_shipdate)::timestamp with time zone) = '1995-09-01'::date)
+                          Rows Removed by Filter: 592566
+                          Buffers: shared hit=6515 read=25666
+                    ->  Parallel Hash  (cost=1657.94..1657.94 rows=35294 width=25) (actual time=2.758..2.758 rows=20000.00 loops=3)
+                          Buckets: 65536  Batches: 1  Memory Usage: 4160kB
+                          Buffers: shared hit=1305
+                          ->  Parallel Seq Scan on part  (cost=0.00..1657.94 rows=35294 width=25) (actual time=0.005..3.497 rows=60000.00 loops=1)
+                                Buffers: shared hit=1305
+Planning:
+  Buffers: shared hit=14
+Planning Time: 0.187 ms
+Execution Time: 144.228 ms

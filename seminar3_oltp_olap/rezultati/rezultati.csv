@@ -1,0 +1,35 @@
+test,metrika,vrednost
+oltp,tps,6035.425
+oltp,p50,0.387
+oltp,p95,1.403
+oltp,p99,1.622
+oltp,commits,90536
+oltp,rollbacks,8276
+oltp,errors,0
+oltp,olap_queries,0
+samo_oltp,tps,6254.387
+samo_oltp,p50,0.353
+samo_oltp,p95,1.345
+samo_oltp,p99,1.596
+samo_oltp,commits,93823
+samo_oltp,rollbacks,23930
+samo_oltp,errors,0
+samo_oltp,olap_queries,0
+oltp_plus_olap,tps,4953.103
+oltp_plus_olap,p50,0.431
+oltp_plus_olap,p95,1.666
+oltp_plus_olap,p99,2.083
+oltp_plus_olap,commits,74301
+oltp_plus_olap,rollbacks,28512
+oltp_plus_olap,errors,0
+oltp_plus_olap,olap_queries,44
+olap_upit,ROLLUP (drill-down godina > kvartal > mesec),235.175
+olap_upit,CUBE (region × kategorija),274.960
+olap_upit,Slice (kategorija = Elektronika),31.401
+olap_upit,Dice (2 regiona × 2 kategorije × poslednja godina),62.592
+olap_upit,Top-3 proizvoda po kategoriji (RANK),78.639
+olap_upit,"Međugodišnji rast (LAG, YoY %)",73.000
+olap_upit,Kumulativni prihod po mesecima (poslednjih 12),60.603
+isto_pitanje,3NF (OLTP šema),340.519
+isto_pitanje,Star schema,86.441
+isto_pitanje,Mat. pogled,0.422

@@ -1,0 +1,72 @@
+-- Faza 3 (Prepisivanje upita), upit Q10 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT c_custkey, c_name, SUM(l_extendedprice * (1 - l_discount)) AS revenue,
+       c_acctbal, n_name, c_address, c_phone
+FROM customer, orders, lineitem, nation
+WHERE c_custkey = o_custkey
+  AND l_orderkey = o_orderkey
+  AND o_orderdate >= DATE '1993-10-01'
+  AND o_orderdate < DATE '1993-10-01' + INTERVAL '3 month'
+  AND l_returnflag = 'R'
+  AND c_nationkey = n_nationkey
+GROUP BY c_custkey, c_name, c_acctbal, c_phone, n_name, c_address
+ORDER BY revenue DESC
+LIMIT 20
+
+Limit  (cost=55469.69..55469.74 rows=20 width=136) (actual time=81.207..85.485 rows=20.00 loops=1)
+  Buffers: shared hit=13792 read=27248
+  ->  Sort  (cost=55469.69..55512.71 rows=17206 width=136) (actual time=81.206..85.483 rows=20.00 loops=1)
+        Sort Key: (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))) DESC
+        Sort Method: top-N heapsort  Memory: 33kB
+        Buffers: shared hit=13792 read=27248
+        ->  GroupAggregate  (cost=52577.78..55011.85 rows=17206 width=136) (actual time=68.864..84.124 rows=12618.00 loops=1)
+              Group Key: customer.c_custkey, nation.n_name
+              Buffers: shared hit=13792 read=27248
+              ->  Gather Merge  (cost=52577.78..54581.70 rows=17206 width=116) (actual time=68.852..76.192 rows=34742.00 loops=1)
+                    Workers Planned: 2
+                    Workers Launched: 2
+                    Buffers: shared hit=13792 read=27248
+                    ->  Sort  (cost=51577.75..51595.68 rows=7169 width=116) (actual time=59.366..59.740 rows=11580.67 loops=3)
+                          Sort Key: customer.c_custkey, nation.n_name
+                          Sort Method: quicksort  Memory: 2332kB
+                          Buffers: shared hit=13792 read=27248
+                          Worker 0:  Sort Method: quicksort  Memory: 1723kB
+                          Worker 1:  Sort Method: quicksort  Memory: 1713kB
+                          ->  Hash Join  (cost=9040.36..51118.67 rows=7169 width=116) (actual time=10.427..56.709 rows=11580.67 loops=3)
+                                Hash Cond: (customer.c_nationkey = nation.n_nationkey)
+                                Buffers: shared hit=13764 read=27248
+                                ->  Hash Join  (cost=9038.80..51095.09 rows=7169 width=94) (actual time=10.397..55.533 rows=11580.67 loops=3)
+                                      Hash Cond: (orders.o_custkey = customer.c_custkey)
+                                      Buffers: shared hit=13761 read=27248
+                                      ->  Parallel Hash Join  (cost=7160.30..49197.77 rows=7169 width=16) (actual time=2.354..45.015 rows=11580.67 loops=3)
+                                            Hash Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                                            Buffers: shared hit=11163 read=27248
+                                            ->  Parallel Seq Scan on lineitem  (cost=0.00..41556.05 rows=183401 width=16) (actual time=0.104..34.701 rows=148343.67 loops=3)
+                                                  Filter: (l_returnflag = 'R'::bpchar)
+                                                  Rows Removed by Filter: 451657
+                                                  Buffers: shared hit=4933 read=27248
+                                            ->  Parallel Hash  (cost=7068.67..7068.67 rows=7330 width=8) (actual time=2.167..2.167 rows=5773.67 loops=3)
+                                                  Buckets: 32768  Batches: 1  Memory Usage: 960kB
+                                                  Buffers: shared hit=6230
+                                                  ->  Parallel Bitmap Heap Scan on orders  (cost=244.73..7068.67 rows=7330 width=8) (actual time=1.114..5.249 rows=17321.00 loops=1)
+                                                        Recheck Cond: ((o_orderdate >= '1993-10-01'::date) AND (o_orderdate < '1994-01-01 00:00:00'::timestamp without time zone))
+                                                        Heap Blocks: exact=6212
+                                                        Buffers: shared hit=6230
+                                                        ->  Bitmap Index Scan on idx_orders_orderdate  (cost=0.00..240.33 rows=17591 width=0) (actual time=0.662..0.662 rows=17321.00 loops=1)
+                                                              Index Cond: ((o_orderdate >= '1993-10-01'::date) AND (o_orderdate < '1994-01-01 00:00:00'::timestamp without time zone))
+                                                              Index Searches: 1
+                                                              Buffers: shared hit=18
+                                      ->  Hash  (cost=1316.00..1316.00 rows=45000 width=82) (actual time=7.981..7.981 rows=45000.00 loops=3)
+                                            Buckets: 65536  Batches: 1  Memory Usage: 5610kB
+                                            Buffers: shared hit=2598
+                                            ->  Seq Scan on customer  (cost=0.00..1316.00 rows=45000 width=82) (actual time=0.013..3.642 rows=45000.00 loops=3)
+                                                  Buffers: shared hit=2598
+                                ->  Hash  (cost=1.25..1.25 rows=25 width=30) (actual time=0.024..0.024 rows=25.00 loops=3)
+                                      Buckets: 1024  Batches: 1  Memory Usage: 10kB
+                                      Buffers: shared hit=3
+                                      ->  Seq Scan on nation  (cost=0.00..1.25 rows=25 width=30) (actual time=0.018..0.019 rows=25.00 loops=3)
+                                            Buffers: shared hit=3
+Planning:
+  Buffers: shared hit=34
+Planning Time: 0.375 ms
+Execution Time: 86.051 ms

@@ -1,0 +1,47 @@
+-- Faza 3 (Prepisivanje upita), upit Q12 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT l_shipmode,
+       SUM(CASE WHEN o_orderpriority IN ('1-URGENT', '2-HIGH') THEN 1 ELSE 0 END) AS high_line_count,
+       SUM(CASE WHEN o_orderpriority NOT IN ('1-URGENT', '2-HIGH') THEN 1 ELSE 0 END) AS low_line_count
+FROM orders, lineitem
+WHERE o_orderkey = l_orderkey
+  AND l_shipmode IN ('MAIL', 'SHIP')
+  AND l_commitdate < l_receiptdate
+  AND l_shipdate < l_commitdate
+  AND l_receiptdate >= DATE '1994-01-01'
+  AND l_receiptdate < DATE '1994-01-01' + INTERVAL '1 year'
+GROUP BY l_shipmode
+ORDER BY l_shipmode
+
+Finalize GroupAggregate  (cost=59860.24..59917.37 rows=7 width=27) (actual time=75.980..80.172 rows=2.00 loops=1)
+  Group Key: lineitem.l_shipmode
+  Buffers: shared hit=13071 read=25838
+  ->  Gather Merge  (cost=59860.24..59917.17 rows=17 width=27) (actual time=75.732..80.168 rows=6.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=13071 read=25838
+        ->  Partial GroupAggregate  (cost=58860.21..58915.18 rows=7 width=27) (actual time=66.006..66.215 rows=2.00 loops=3)
+              Group Key: lineitem.l_shipmode
+              Buffers: shared hit=13071 read=25838
+              ->  Sort  (cost=58860.21..58869.36 rows=3660 width=27) (actual time=65.795..65.866 rows=3118.67 loops=3)
+                    Sort Key: lineitem.l_shipmode
+                    Sort Method: quicksort  Memory: 264kB
+                    Buffers: shared hit=13071 read=25838
+                    Worker 0:  Sort Method: quicksort  Memory: 234kB
+                    Worker 1:  Sort Method: quicksort  Memory: 230kB
+                    ->  Parallel Hash Join  (cost=49101.83..58643.58 rows=3660 width=27) (actual time=50.947..65.465 rows=3118.67 loops=3)
+                          Hash Cond: (orders.o_orderkey = lineitem.l_orderkey)
+                          Buffers: shared hit=13057 read=25838
+                          ->  Parallel Seq Scan on orders  (cost=0.00..8589.00 rows=187500 width=20) (actual time=0.004..5.214 rows=150000.00 loops=3)
+                                Buffers: shared hit=6714
+                          ->  Parallel Hash  (cost=49056.08..49056.08 rows=3660 width=15) (actual time=50.888..50.888 rows=3118.67 loops=3)
+                                Buckets: 16384  Batches: 1  Memory Usage: 608kB
+                                Buffers: shared hit=6343 read=25838
+                                ->  Parallel Seq Scan on lineitem  (cost=0.00..49056.08 rows=3660 width=15) (actual time=0.103..50.398 rows=3118.67 loops=3)
+                                      Filter: ((l_shipmode = ANY ('{MAIL,SHIP}'::bpchar[])) AND (l_commitdate < l_receiptdate) AND (l_shipdate < l_commitdate) AND (l_receiptdate >= '1994-01-01'::date) AND (l_receiptdate < '1995-01-01 00:00:00'::timestamp without time zone))
+                                      Rows Removed by Filter: 596882
+                                      Buffers: shared hit=6343 read=25838
+Planning:
+  Buffers: shared hit=16
+Planning Time: 0.193 ms
+Execution Time: 80.228 ms

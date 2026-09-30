@@ -1,0 +1,93 @@
+-- Faza 0 (Baseline), upit Q5 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT n_name, SUM(l_extendedprice * (1 - l_discount)) AS revenue
+FROM customer, orders, lineitem, supplier, nation, region
+WHERE c_custkey = o_custkey
+  AND l_orderkey = o_orderkey
+  AND l_suppkey = s_suppkey
+  AND c_nationkey = s_nationkey
+  AND s_nationkey = n_nationkey
+  AND n_regionkey = r_regionkey
+  AND r_name = 'ASIA'
+  AND o_orderdate >= DATE '1994-01-01'
+  AND o_orderdate < DATE '1994-01-01' + INTERVAL '1 year'
+GROUP BY n_name
+ORDER BY revenue DESC
+
+Sort  (cost=49048.67..49049.09 rows=170 width=136) (actual time=114.646..119.053 rows=5.00 loops=1)
+  Sort Key: (sum((lineitem.l_extendedprice * ('1'::numeric - lineitem.l_discount)))) DESC
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=17772 read=23923 written=42
+  ->  Finalize GroupAggregate  (cost=48910.07..49042.37 rows=170 width=136) (actual time=114.423..119.047 rows=5.00 loops=1)
+        Group Key: nation.n_name
+        Buffers: shared hit=17772 read=23923 written=42
+        ->  Gather Merge  (cost=48910.07..49037.19 rows=408 width=136) (actual time=114.386..119.036 rows=15.00 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=17772 read=23923 written=42
+              ->  Partial GroupAggregate  (cost=47910.04..47990.07 rows=170 width=136) (actual time=104.807..104.944 rows=5.00 loops=3)
+                    Group Key: nation.n_name
+                    Buffers: shared hit=17772 read=23923 written=42
+                    ->  Sort  (cost=47910.04..47925.62 rows=6232 width=140) (actual time=104.779..104.802 rows=679.00 loops=3)
+                          Sort Key: nation.n_name
+                          Sort Method: quicksort  Memory: 64kB
+                          Buffers: shared hit=17772 read=23923 written=42
+                          Worker 0:  Sort Method: quicksort  Memory: 59kB
+                          Worker 1:  Sort Method: quicksort  Memory: 62kB
+                          ->  Merge Join  (cost=47209.80..47517.26 rows=6232 width=140) (actual time=100.074..104.650 rows=679.00 loops=3)
+                                Merge Cond: ((orders.o_custkey = customer.c_custkey) AND (supplier.s_nationkey = customer.c_nationkey))
+                                Buffers: shared hit=17758 read=23923 written=42
+                                ->  Sort  (cost=45400.21..45451.62 rows=20561 width=152) (actual time=94.916..95.975 rows=17350.33 loops=3)
+                                      Sort Key: orders.o_custkey, supplier.s_nationkey
+                                      Sort Method: quicksort  Memory: 2077kB
+                                      Buffers: shared hit=15160 read=23923 written=42
+                                      Worker 0:  Sort Method: quicksort  Memory: 1931kB
+                                      Worker 1:  Sort Method: quicksort  Memory: 1956kB
+                                      ->  Parallel Hash Join  (cost=7693.44..43927.26 rows=20561 width=152) (actual time=11.984..91.293 rows=17350.33 loops=3)
+                                            Hash Cond: (lineitem.l_orderkey = orders.o_orderkey)
+                                            Buffers: shared hit=15152 read=23923 written=42
+                                            ->  Hash Join  (cost=94.55..36016.60 rows=5833 width=152) (actual time=0.709..68.837 rows=114575.33 loops=3)
+                                                  Hash Cond: (lineitem.l_suppkey = supplier.s_suppkey)
+                                                  Buffers: shared hit=8533 read=23828 written=42
+                                                  ->  Parallel Seq Scan on lineitem  (cost=0.00..34862.75 rows=268175 width=44) (actual time=0.232..28.566 rows=600000.33 loops=3)
+                                                        Buffers: shared hit=8353 read=23828 written=42
+                                                  ->  Hash  (cost=94.50..94.50 rows=4 width=116) (actual time=0.469..0.472 rows=574.00 loops=3)
+                                                        Buckets: 1024  Batches: 1  Memory Usage: 49kB
+                                                        Buffers: shared hit=180
+                                                        ->  Hash Join  (cost=24.50..94.50 rows=4 width=116) (actual time=0.096..0.424 rows=574.00 loops=3)
+                                                              Hash Cond: (supplier.s_nationkey = nation.n_nationkey)
+                                                              Buffers: shared hit=180
+                                                              ->  Seq Scan on supplier  (cost=0.00..66.70 rows=870 width=8) (actual time=0.026..0.183 rows=3000.00 loops=3)
+                                                                    Buffers: shared hit=174
+                                                              ->  Hash  (cost=24.48..24.48 rows=1 width=108) (actual time=0.066..0.068 rows=5.00 loops=3)
+                                                                    Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                                    Buffers: shared hit=6
+                                                                    ->  Hash Join  (cost=12.14..24.48 rows=1 width=108) (actual time=0.060..0.063 rows=5.00 loops=3)
+                                                                          Hash Cond: (nation.n_regionkey = region.r_regionkey)
+                                                                          Buffers: shared hit=6
+                                                                          ->  Seq Scan on nation  (cost=0.00..11.70 rows=170 width=112) (actual time=0.011..0.012 rows=25.00 loops=3)
+                                                                                Buffers: shared hit=3
+                                                                          ->  Hash  (cost=12.12..12.12 rows=1 width=4) (actual time=0.018..0.018 rows=1.00 loops=3)
+                                                                                Buckets: 1024  Batches: 1  Memory Usage: 9kB
+                                                                                Buffers: shared hit=3
+                                                                                ->  Seq Scan on region  (cost=0.00..12.12 rows=1 width=4) (actual time=0.014..0.014 rows=1.00 loops=3)
+                                                                                      Filter: (r_name = 'ASIA'::bpchar)
+                                                                                      Rows Removed by Filter: 4
+                                                                                      Buffers: shared hit=3
+                                            ->  Parallel Hash  (cost=7595.21..7595.21 rows=294 width=8) (actual time=11.250..11.250 rows=22766.67 loops=3)
+                                                  Buckets: 131072 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 4792kB
+                                                  Buffers: shared hit=6619 read=95
+                                                  ->  Parallel Seq Scan on orders  (cost=0.00..7595.21 rows=294 width=8) (actual time=0.016..8.199 rows=22766.67 loops=3)
+                                                        Filter: ((o_orderdate >= '1994-01-01'::date) AND (o_orderdate < '1995-01-01 00:00:00'::timestamp without time zone))
+                                                        Rows Removed by Filter: 127233
+                                                        Buffers: shared hit=6619 read=95
+                                ->  Sort  (cost=1809.59..1839.90 rows=12124 width=8) (actual time=5.148..6.125 rows=45065.67 loops=3)
+                                      Sort Key: customer.c_custkey, customer.c_nationkey
+                                      Sort Method: quicksort  Memory: 2591kB
+                                      Buffers: shared hit=2598
+                                      Worker 0:  Sort Method: quicksort  Memory: 2591kB
+                                      Worker 1:  Sort Method: quicksort  Memory: 2591kB
+                                      ->  Seq Scan on customer  (cost=0.00..987.24 rows=12124 width=8) (actual time=0.075..3.001 rows=45000.00 loops=3)
+                                            Buffers: shared hit=2598
+Planning Time: 0.391 ms
+Execution Time: 119.307 ms

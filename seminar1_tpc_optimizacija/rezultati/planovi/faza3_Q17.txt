@@ -1,0 +1,57 @@
+-- Faza 3 (Prepisivanje upita), upit Q17 [prepisan]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+WITH part_avg AS (
+    SELECT l_partkey AS agg_partkey, 0.2 * AVG(l_quantity) AS avg_qty
+    FROM lineitem
+    JOIN part ON p_partkey = l_partkey
+    WHERE p_brand = 'Brand#23'
+      AND p_container = 'MED BOX'
+    GROUP BY l_partkey
+)
+SELECT SUM(l_extendedprice) / 7.0 AS avg_yearly
+FROM lineitem
+JOIN part_avg ON l_partkey = agg_partkey
+WHERE l_quantity < avg_qty
+
+Finalize Aggregate  (cost=49881.75..49881.76 rows=1 width=32) (actual time=54.553..58.472 rows=1.00 loops=1)
+  Buffers: shared hit=12821 read=25601
+  ->  Gather  (cost=49881.53..49881.74 rows=2 width=32) (actual time=54.397..58.464 rows=3.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=12821 read=25601
+        ->  Partial Aggregate  (cost=48881.53..48881.54 rows=1 width=32) (actual time=44.493..44.495 rows=1.00 loops=3)
+              Buffers: shared hit=12821 read=25601
+              ->  Hash Join  (cost=7213.77..48863.62 rows=7162 width=8) (actual time=3.423..44.480 rows=52.00 loops=3)
+                    Hash Cond: (lineitem.l_partkey = lineitem_1.l_partkey)
+                    Join Filter: (lineitem.l_quantity < ((0.2 * avg(lineitem_1.l_quantity))))
+                    Rows Removed by Join Filter: 560
+                    Buffers: shared hit=12821 read=25601
+                    ->  Parallel Seq Scan on lineitem  (cost=0.00..39681.04 rows=750004 width=17) (actual time=0.057..20.016 rows=600000.33 loops=3)
+                          Buffers: shared hit=6580 read=25601
+                    ->  Hash  (cost=7192.39..7192.39 rows=1710 width=36) (actual time=2.726..2.728 rows=61.00 loops=3)
+                          Buckets: 2048  Batches: 1  Memory Usage: 19kB
+                          Buffers: shared hit=6241
+                          ->  HashAggregate  (cost=7166.74..7192.39 rows=1710 width=36) (actual time=2.699..2.720 rows=61.00 loops=3)
+                                Group Key: lineitem_1.l_partkey
+                                Batches: 1  Memory Usage: 89kB
+                                Buffers: shared hit=6241
+                                Worker 0:  Batches: 1  Memory Usage: 89kB
+                                Worker 1:  Batches: 1  Memory Usage: 89kB
+                                ->  Nested Loop  (cost=5.30..7158.19 rows=1710 width=9) (actual time=0.056..2.458 rows=1835.00 loops=3)
+                                      Buffers: shared hit=6241
+                                      ->  Bitmap Heap Scan on part  (cost=4.87..194.93 rows=57 width=4) (actual time=0.038..0.134 rows=61.00 loops=3)
+                                            Recheck Cond: ((p_brand = 'Brand#23'::bpchar) AND (p_container = 'MED BOX'::bpchar))
+                                            Heap Blocks: exact=59
+                                            Buffers: shared hit=185
+                                            ->  Bitmap Index Scan on idx_part_brand_container  (cost=0.00..4.86 rows=57 width=0) (actual time=0.018..0.019 rows=61.00 loops=3)
+                                                  Index Cond: ((p_brand = 'Brand#23'::bpchar) AND (p_container = 'MED BOX'::bpchar))
+                                                  Index Searches: 3
+                                                  Buffers: shared hit=8
+                                      ->  Index Scan using idx_lineitem_partkey on lineitem lineitem_1  (cost=0.43..121.86 rows=30 width=9) (actual time=0.004..0.036 rows=30.08 loops=183)
+                                            Index Cond: (l_partkey = part.p_partkey)
+                                            Index Searches: 183
+                                            Buffers: shared hit=6056
+Planning:
+  Buffers: shared hit=14
+Planning Time: 0.224 ms
+Execution Time: 58.537 ms

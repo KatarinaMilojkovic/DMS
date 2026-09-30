@@ -1,0 +1,31 @@
+-- Faza 0 (Baseline), upit Q14 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT 100.00 * SUM(CASE WHEN p_type LIKE 'PROMO%'
+                         THEN l_extendedprice * (1 - l_discount) ELSE 0 END)
+       / SUM(l_extendedprice * (1 - l_discount)) AS promo_revenue
+FROM lineitem, part
+WHERE l_partkey = p_partkey
+  AND date_trunc('month', l_shipdate) = DATE '1995-09-01'
+
+Finalize Aggregate  (cost=45688.74..45688.76 rows=1 width=32) (actual time=211.624..216.442 rows=1.00 loops=1)
+  Buffers: shared hit=14732 read=18754
+  ->  Gather  (cost=45688.51..45688.72 rows=2 width=64) (actual time=211.417..216.433 rows=2.00 loops=1)
+        Workers Planned: 1
+        Workers Launched: 1
+        Buffers: shared hit=14732 read=18754
+        ->  Partial Aggregate  (cost=44688.51..44688.52 rows=1 width=64) (actual time=204.695..204.697 rows=1.00 loops=2)
+              Buffers: shared hit=14732 read=18754
+              ->  Parallel Hash Join  (cost=36890.82..41230.10 rows=197623 width=104) (actual time=198.140..203.156 rows=11151.50 loops=2)
+                    Hash Cond: (part.p_partkey = lineitem.l_partkey)
+                    Buffers: shared hit=14732 read=18754
+                    ->  Parallel Seq Scan on part  (cost=0.00..1427.82 rows=12282 width=72) (actual time=0.005..1.729 rows=30000.00 loops=2)
+                          Buffers: shared hit=1305
+                    ->  Parallel Hash  (cost=36874.06..36874.06 rows=1341 width=40) (actual time=198.098..198.098 rows=11151.50 loops=2)
+                          Buckets: 32768 (originally 4096)  Batches: 1 (originally 1)  Memory Usage: 1696kB
+                          Buffers: shared hit=13427 read=18754
+                          ->  Parallel Seq Scan on lineitem  (cost=0.00..36874.06 rows=1341 width=40) (actual time=0.087..186.100 rows=11151.50 loops=2)
+                                Filter: (date_trunc('month'::text, (l_shipdate)::timestamp with time zone) = '1995-09-01'::date)
+                                Rows Removed by Filter: 888849
+                                Buffers: shared hit=13427 read=18754
+Planning Time: 0.124 ms
+Execution Time: 216.476 ms

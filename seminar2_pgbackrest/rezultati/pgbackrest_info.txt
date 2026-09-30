@@ -1,0 +1,89 @@
+=== pre expire (repo1) ===
+stanza: demo
+    status: ok
+    cipher: none
+
+    db (current)
+        wal archive min/max (18): 000000010000000000000001/000000010000000000000055
+
+        full backup: 20260930-015817F
+            timestamp start/stop: 2026-09-30 01:58:17+02 / 2026-09-30 01:58:20+02
+            wal start/stop: 000000010000000000000042 / 000000010000000000000042
+            database size: 507.6MB, database backup size: 507.6MB
+            repo1: backup set size: 180.7MB, backup size: 180.7MB
+
+        incr backup: 20260930-015817F_20260930-015825I
+            timestamp start/stop: 2026-09-30 01:58:25+02 / 2026-09-30 01:58:26+02
+            wal start/stop: 000000010000000000000046 / 000000010000000000000046
+            database size: 509.2MB, database backup size: 51MB
+            repo1: backup set size: 181.5MB, backup size: 18.7MB
+            backup reference total: 1 full
+
+        incr backup: 20260930-015817F_20260930-015830I
+            timestamp start/stop: 2026-09-30 01:58:30+02 / 2026-09-30 01:58:31+02
+            wal start/stop: 00000001000000000000004A / 00000001000000000000004A
+            database size: 510.8MB, database backup size: 156.1MB
+            repo1: backup set size: 182MB, backup size: 54.8MB
+            backup reference total: 1 full, 1 incr
+
+        diff backup: 20260930-015817F_20260930-015841D
+            timestamp start/stop: 2026-09-30 01:58:41+02 / 2026-09-30 01:58:42+02
+            wal start/stop: 00000001000000000000004E / 00000001000000000000004E
+            database size: 510.8MB, database backup size: 207.1MB
+            repo1: backup set size: 182MB, backup size: 73.5MB
+            backup reference total: 1 full
+
+        incr backup: 20260930-015817F_20260930-015846I
+            timestamp start/stop: 2026-09-30 01:58:46+02 / 2026-09-30 01:58:47+02
+            wal start/stop: 000000010000000000000052 / 000000010000000000000052
+            database size: 510.9MB, database backup size: 50.9MB
+            repo1: backup set size: 182.1MB, backup size: 18.7MB
+            backup reference total: 1 full, 1 diff
+
+=== kraj eksperimenta ===
+stanza: demo
+    status: ok
+    cipher: none
+
+    db (current)
+        wal archive min/max (18): 000000010000000000000001/000000020000000000000056
+
+        full backup: 20260930-015820F
+            timestamp start/stop: 2026-09-30 01:58:20+02 / 2026-09-30 01:58:22+02
+            wal start/stop: 000000010000000000000043 / 000000010000000000000044
+            database size: 507.6MB, database backup size: 507.6MB
+            repo2: backup size: 181MB
+
+        incr backup: 20260930-015820F_20260930-015826I
+            timestamp start/stop: 2026-09-30 01:58:26+02 / 2026-09-30 01:58:27+02
+            wal start/stop: 000000010000000000000047 / 000000010000000000000048
+            database size: 509.2MB, database backup size: 50.8MB
+            repo2: backup size: 806.5KB
+            backup reference total: 1 full
+
+        incr backup: 20260930-015820F_20260930-015831I
+            timestamp start/stop: 2026-09-30 01:58:31+02 / 2026-09-30 01:58:32+02
+            wal start/stop: 00000001000000000000004B / 00000001000000000000004C
+            database size: 510.8MB, database backup size: 156.1MB
+            repo2: backup size: 1.1MB
+            backup reference total: 1 full, 1 incr
+
+        diff backup: 20260930-015820F_20260930-015842D
+            timestamp start/stop: 2026-09-30 01:58:42+02 / 2026-09-30 01:58:43+02
+            wal start/stop: 00000001000000000000004F / 000000010000000000000050
+            database size: 510.8MB, database backup size: 206.9MB
+            repo2: backup size: 1.9MB
+            backup reference total: 1 full
+
+        incr backup: 20260930-015820F_20260930-015847I
+            timestamp start/stop: 2026-09-30 01:58:47+02 / 2026-09-30 01:58:48+02
+            wal start/stop: 000000010000000000000053 / 000000010000000000000054
+            database size: 510.9MB, database backup size: 50.9MB
+            repo2: backup size: 85.2KB
+            backup reference total: 1 full, 1 diff
+
+        full backup: 20260930-015856F
+            timestamp start/stop: 2026-09-30 01:58:56+02 / 2026-09-30 01:58:59+02
+            wal start/stop: 000000020000000000000056 / 000000020000000000000056
+            database size: 510.9MB, database backup size: 510.9MB
+            repo1: backup set size: 182.1MB, backup size: 182.1MB

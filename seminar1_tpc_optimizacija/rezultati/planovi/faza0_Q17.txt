@@ -1,0 +1,24 @@
+-- Faza 0 (Baseline), upit Q17 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+-- EXPLAIN bez ANALYZE (upit je prekoračio timeout)
+SELECT SUM(l_extendedprice) / 7.0 AS avg_yearly
+FROM lineitem, part
+WHERE p_partkey = l_partkey
+  AND p_brand = 'Brand#23'
+  AND p_container = 'MED BOX'
+  AND l_quantity < (SELECT 0.2 * AVG(l_quantity)
+                    FROM lineitem
+                    WHERE l_partkey = p_partkey)
+
+Aggregate  (cost=129516701.48..129516701.49 rows=1 width=32)
+  ->  Hash Join  (cost=1618.21..129516698.79 rows=1073 width=18)
+        Hash Cond: (lineitem.l_partkey = part.p_partkey)
+        Join Filter: (lineitem.l_quantity < (SubPlan 1))
+        ->  Seq Scan on lineitem  (cost=0.00..38617.20 rows=643620 width=40)
+        ->  Hash  (cost=1618.20..1618.20 rows=1 width=4)
+              ->  Seq Scan on part  (cost=0.00..1618.20 rows=1 width=4)
+                    Filter: ((p_brand = 'Brand#23'::bpchar) AND (p_container = 'MED BOX'::bpchar))
+        SubPlan 1
+          ->  Aggregate  (cost=40234.30..40234.31 rows=1 width=32)
+                ->  Seq Scan on lineitem lineitem_1  (cost=0.00..40226.25 rows=3218 width=18)
+                      Filter: (l_partkey = part.p_partkey)

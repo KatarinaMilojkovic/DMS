@@ -1,0 +1,29 @@
+-- Faza 3 (Prepisivanje upita), upit Q14 [prepisan]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT 100.00 * SUM(CASE WHEN p_type LIKE 'PROMO%'
+                         THEN l_extendedprice * (1 - l_discount) ELSE 0 END)
+       / SUM(l_extendedprice * (1 - l_discount)) AS promo_revenue
+FROM lineitem, part
+WHERE l_partkey = p_partkey
+  AND l_shipdate >= DATE '1995-09-01'
+  AND l_shipdate < DATE '1995-09-01' + INTERVAL '1 month'
+
+Aggregate  (cost=4242.12..4242.13 rows=1 width=32) (actual time=13.357..13.358 rows=1.00 loops=1)
+  Buffers: shared hit=1443
+  ->  Hash Join  (cost=2655.43..3810.04 rows=24690 width=33) (actual time=6.394..10.373 rows=22303.00 loops=1)
+        Hash Cond: (lineitem.l_partkey = part.p_partkey)
+        Buffers: shared hit=1443
+        ->  Index Only Scan using idx_lineitem_shipdate on lineitem  (cost=0.43..1090.23 rows=24690 width=16) (actual time=0.004..0.998 rows=22303.00 loops=1)
+              Index Cond: ((l_shipdate >= '1995-09-01'::date) AND (l_shipdate < '1995-10-01 00:00:00'::timestamp without time zone))
+              Heap Fetches: 0
+              Index Searches: 1
+              Buffers: shared hit=138
+        ->  Hash  (cost=1905.00..1905.00 rows=60000 width=25) (actual time=6.337..6.337 rows=60000.00 loops=1)
+              Buckets: 65536  Batches: 1  Memory Usage: 3978kB
+              Buffers: shared hit=1305
+              ->  Seq Scan on part  (cost=0.00..1905.00 rows=60000 width=25) (actual time=0.005..2.827 rows=60000.00 loops=1)
+                    Buffers: shared hit=1305
+Planning:
+  Buffers: shared hit=14
+Planning Time: 0.157 ms
+Execution Time: 13.609 ms

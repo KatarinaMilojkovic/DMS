@@ -1,0 +1,55 @@
+faza_id,faza,upit,varijanta,medijana_ms,min_ms,max_ms,timeout,blokovi_shared,blokovi_temp,rezultat_ok
+0,Baseline,Q1,original,543.09,542.89,566.29,False,32255,16207,True
+0,Baseline,Q3,original,241.14,198.62,341.45,False,41597,6537,True
+0,Baseline,Q5,original,91.03,82.91,124.71,False,41695,0,True
+0,Baseline,Q6,original,56.26,56.21,61.89,False,32181,0,True
+0,Baseline,Q10,original,109.03,108.33,112.85,False,39776,3195,True
+0,Baseline,Q12,original,87.84,84.32,124.45,False,38909,0,True
+0,Baseline,Q14,original,221.23,216.32,258.46,False,33486,0,True
+0,Baseline,Q17,original,60000.00,60000.00,60000.00,True,,,
+0,Baseline,Q18,original,1698.85,1698.16,1743.41,False,137984,163940,True
+1,ANALYZE - statistika,Q1,original,267.78,267.09,273.39,False,32195,0,True
+1,ANALYZE - statistika,Q3,original,75.72,73.50,77.77,False,41523,0,True
+1,ANALYZE - statistika,Q5,original,65.86,63.72,68.44,False,41687,0,True
+1,ANALYZE - statistika,Q6,original,56.08,52.85,57.10,False,32181,0,True
+1,ANALYZE - statistika,Q10,original,81.28,79.56,83.60,False,41496,0,True
+1,ANALYZE - statistika,Q12,original,79.38,78.33,79.38,False,38909,0,True
+1,ANALYZE - statistika,Q14,original,155.04,147.97,182.59,False,33486,0,True
+1,ANALYZE - statistika,Q17,original,60000.00,60000.00,60000.00,True,,,
+1,ANALYZE - statistika,Q18,original,739.03,736.34,780.06,False,137927,81001,True
+2,Indeksi,Q1,original,268.50,263.04,300.36,False,32195,0,True
+2,Indeksi,Q3,original,108.67,107.67,110.63,False,187315,0,True
+2,Indeksi,Q5,original,65.45,65.39,66.21,False,65579,0,True
+2,Indeksi,Q6,original,18.94,18.71,19.19,False,1643,0,True
+2,Indeksi,Q10,original,79.93,79.39,80.32,False,41040,0,True
+2,Indeksi,Q12,original,75.07,74.72,79.26,False,38909,0,True
+2,Indeksi,Q14,original,146.81,142.29,147.25,False,33486,0,True
+2,Indeksi,Q17,original,79.71,79.62,80.07,False,94362,0,True
+2,Indeksi,Q18,original,507.40,479.84,532.41,False,125300,0,True
+3,Prepisivanje upita,Q1,original,267.32,259.55,267.52,False,32195,0,True
+3,Prepisivanje upita,Q3,original,108.19,106.95,108.96,False,187315,0,True
+3,Prepisivanje upita,Q5,original,65.83,64.66,120.35,False,65579,0,True
+3,Prepisivanje upita,Q6,original,18.87,18.85,19.98,False,1643,0,True
+3,Prepisivanje upita,Q10,original,79.92,79.54,81.21,False,41040,0,True
+3,Prepisivanje upita,Q12,original,78.33,76.39,79.66,False,38909,0,True
+3,Prepisivanje upita,Q14,prepisan,10.72,10.43,10.86,False,1443,0,True
+3,Prepisivanje upita,Q17,prepisan,49.98,48.82,50.04,False,38422,0,True
+3,Prepisivanje upita,Q18,original,504.12,474.81,515.05,False,126167,0,True
+4,Podešavanje konfiguracije,Q1,original,191.57,180.98,211.31,False,32209,0,True
+4,Podešavanje konfiguracije,Q3,original,107.01,106.83,132.97,False,187285,0,True
+4,Podešavanje konfiguracije,Q5,original,67.45,65.57,67.90,False,65579,0,True
+4,Podešavanje konfiguracije,Q6,original,19.39,19.17,20.44,False,1643,0,True
+4,Podešavanje konfiguracije,Q10,original,77.69,77.26,77.90,False,79262,0,True
+4,Podešavanje konfiguracije,Q12,original,66.46,65.59,68.12,False,69637,0,True
+4,Podešavanje konfiguracije,Q14,prepisan,11.40,11.34,11.73,False,1443,0,True
+4,Podešavanje konfiguracije,Q17,prepisan,49.79,48.28,123.39,False,21291,0,True
+4,Podešavanje konfiguracije,Q18,original,395.40,393.37,397.63,False,71942,0,True
+5,Materijalizovani pogled,Q1,mat. pogled,1.02,0.90,1.04,False,64,0,True
+5,Materijalizovani pogled,Q3,original,109.63,107.60,110.11,False,187285,0,True
+5,Materijalizovani pogled,Q5,original,64.87,64.67,64.94,False,65579,0,True
+5,Materijalizovani pogled,Q6,original,19.58,19.06,20.02,False,1645,0,True
+5,Materijalizovani pogled,Q10,original,77.36,77.01,126.74,False,79262,0,True
+5,Materijalizovani pogled,Q12,original,77.79,67.37,82.34,False,69637,0,True
+5,Materijalizovani pogled,Q14,prepisan,11.04,10.96,11.45,False,1443,0,True
+5,Materijalizovani pogled,Q17,prepisan,106.92,50.82,116.63,False,21291,0,True
+5,Materijalizovani pogled,Q18,original,398.74,398.28,399.63,False,71942,0,True

@@ -1,0 +1,231 @@
+-- ROLLUP (drill-down godina > kvartal > mesec) (235.2 ms)
+SELECT d.year, d.quarter, d.month, SUM(f.revenue) AS revenue FROM dw.fact_sales f JOIN dw.dim_date d ON d.date_key = f.date_key JOIN dw.dim_customer c ON c.customer_key = f.customer_key JOIN dw.dim_product p ON p.product_key = f.product_key GROUP BY ROLLUP (d.year, d.quarter, d.month) ORDER BY d.year NULLS LAST, d.quarter NULLS LAST, d.month NULLS LAST
+2023 | 1 | 1 | 109086445.16
+2023 | 1 | 2 | 152115792.75
+2023 | 1 | 3 | 201727528.86
+2023 | 1 | * | 462929766.77
+2023 | 2 | 4 | 220713773.94
+2023 | 2 | 5 | 245930391.58
+2023 | 2 | 6 | 254902113.91
+2023 | 2 | * | 721546279.43
+2023 | 3 | 7 | 278578987.74
+2023 | 3 | 8 | 289792495.35
+2023 | 3 | 9 | 300056320.26
+2023 | 3 | * | 868427803.35
+2023 | 4 | 10 | 313999925.98
+2023 | 4 | 11 | 472336728.80
+2023 | 4 | 12 | 500619266.90
+2023 | 4 | * | 1286955921.68
+2023 | * | * | 3339859771.23
+2024 | 1 | 1 | 352004094.83
+2024 | 1 | 2 | 333622027.24
+2024 | 1 | 3 | 364062531.20
+2024 | 1 | * | 1049688653.27
+2024 | 2 | 4 | 357396692.93
+2024 | 2 | 5 | 370968112.47
+2024 | 2 | 6 | 371983817.35
+2024 | 2 | * | 1100348622.75
+2024 | 3 | 7 | 398189144.86
+2024 | 3 | 8 | 404401513.02
+2024 | 3 | 9 | 397329473.12
+2024 | 3 | * | 1199920131.00
+2024 | 4 | 10 | 417742706.50
+2024 | 4 | 11 | 605282152.78
+2024 | 4 | 12 | 644503694.70
+2024 | 4 | * | 1667528553.98
+2024 | * | * | 5017485961.00
+2025 | 1 | 1 | 435271941.23
+2025 | 1 | 2 | 394135738.39
+2025 | 1 | 3 | 440685224.22
+2025 | 1 | * | 1270092903.84
+2025 | 2 | 4 | 430485003.10
+2025 | 2 | 5 | 454822369.56
+2025 | 2 | 6 | 437482559.90
+2025 | 2 | * | 1322789932.56
+2025 | 3 | 7 | 466467647.71
+2025 | 3 | 8 | 467666189.79
+2025 | 3 | 9 | 452112266.30
+2025 | 3 | * | 1386246103.80
+2025 | 4 | 10 | 481129381.47
+2025 | 4 | 11 | 703975346.79
+2025 | 4 | 12 | 729689532.59
+2025 | 4 | * | 1914794260.85
+2025 | * | * | 5893923201.05
+2026 | 1 | 1 | 496326511.80
+2026 | 1 | 2 | 449599800.15
+2026 | 1 | 3 | 496492969.82
+2026 | 1 | * | 1442419281.77
+2026 | 2 | 4 | 486384867.48
+2026 | 2 | 5 | 510186662.44
+2026 | 2 | 6 | 492024685.05
+2026 | 2 | * | 1488596214.97
+2026 | 3 | 7 | 513915371.62
+2026 | 3 | 8 | 528264823.04
+2026 | 3 | 9 | 4003596219.82
+2026 | 3 | * | 5045776414.48
+2026 | * | * | 7976791911.22
+* | * | * | 22228060844.50
+
+-- CUBE (region × kategorija) (275.0 ms)
+SELECT c.region, p.category, SUM(f.revenue) AS revenue FROM dw.fact_sales f JOIN dw.dim_date d ON d.date_key = f.date_key JOIN dw.dim_customer c ON c.customer_key = f.customer_key JOIN dw.dim_product p ON p.product_key = f.product_key GROUP BY CUBE (c.region, p.category) ORDER BY c.region NULLS LAST, p.category NULLS LAST
+Beogradski region | Elektronika | 467276605.37
+Beogradski region | Hrana | 460327357.73
+Beogradski region | Igračke | 463377065.85
+Beogradski region | Knjige | 555162842.65
+Beogradski region | Kozmetika | 440082815.53
+Beogradski region | Kućni aparati | 529321514.16
+Beogradski region | Odeća | 498087201.02
+Beogradski region | Sport | 396910849.01
+Beogradski region | * | 3810546251.32
+Region Južne i Istočne Srbije | Elektronika | 530618678.28
+Region Južne i Istočne Srbije | Hrana | 528492354.74
+Region Južne i Istočne Srbije | Igračke | 517071793.11
+Region Južne i Istočne Srbije | Knjige | 621685710.62
+Region Južne i Istočne Srbije | Kozmetika | 495166313.29
+Region Južne i Istočne Srbije | Kućni aparati | 606147913.21
+Region Južne i Istočne Srbije | Odeća | 567055333.90
+Region Južne i Istočne Srbije | Sport | 465031789.33
+Region Južne i Istočne Srbije | * | 4331269886.48
+Region Šumadije i Zapadne Srbije | Elektronika | 763294829.39
+Region Šumadije i Zapadne Srbije | Hrana | 747301668.83
+Region Šumadije i Zapadne Srbije | Igračke | 750052925.24
+Region Šumadije i Zapadne Srbije | Knjige | 896875528.39
+Region Šumadije i Zapadne Srbije | Kozmetika | 715410790.45
+Region Šumadije i Zapadne Srbije | Kućni aparati | 870711502.26
+Region Šumadije i Zapadne Srbije | Odeća | 824439557.76
+Region Šumadije i Zapadne Srbije | Sport | 658269298.34
+Region Šumadije i Zapadne Srbije | * | 6226356100.66
+Region Vojvodine | Elektronika | 947091211.10
+Region Vojvodine | Hrana | 952548442.90
+Region Vojvodine | Igračke | 941974828.26
+Region Vojvodine | Knjige | 1145055033.55
+Region Vojvodine | Kozmetika | 901318103.89
+Region Vojvodine | Kućni aparati | 1108156067.46
+Region Vojvodine | Odeća | 1031810661.61
+Region Vojvodine | Sport | 831934257.27
+Region Vojvodine | * | 7859888606.04
+* | Elektronika | 2708281324.14
+* | Hrana | 2688669824.20
+* | Igračke | 2672476612.46
+* | Knjige | 3218779115.21
+* | Kozmetika | 2551978023.16
+* | Kućni aparati | 3114336997.09
+* | Odeća | 2921392754.29
+* | Sport | 2352146193.95
+* | * | 22228060844.50
+
+-- Slice (kategorija = Elektronika) (31.4 ms)
+SELECT c.region, d.year, SUM(f.revenue) AS revenue FROM dw.fact_sales f JOIN dw.dim_date d ON d.date_key = f.date_key JOIN dw.dim_customer c ON c.customer_key = f.customer_key JOIN dw.dim_product p ON p.product_key = f.product_key WHERE p.category = 'Elektronika' GROUP BY c.region, d.year ORDER BY c.region, d.year
+Beogradski region | 2023 | 69056513.77
+Beogradski region | 2024 | 106513841.62
+Beogradski region | 2025 | 122709859.30
+Beogradski region | 2026 | 168996390.68
+Region Južne i Istočne Srbije | 2023 | 80081941.63
+Region Južne i Istočne Srbije | 2024 | 116037679.55
+Region Južne i Istočne Srbije | 2025 | 141813292.93
+Region Južne i Istočne Srbije | 2026 | 192685764.17
+Region Šumadije i Zapadne Srbije | 2023 | 116207864.42
+Region Šumadije i Zapadne Srbije | 2024 | 174281786.35
+Region Šumadije i Zapadne Srbije | 2025 | 201576128.46
+Region Šumadije i Zapadne Srbije | 2026 | 271229050.16
+Region Vojvodine | 2023 | 137990740.50
+Region Vojvodine | 2024 | 206551408.62
+Region Vojvodine | 2025 | 255337983.01
+Region Vojvodine | 2026 | 347211078.97
+
+-- Dice (2 regiona × 2 kategorije × poslednja godina) (62.6 ms)
+SELECT c.region, p.category, d.quarter, SUM(f.revenue) AS revenue FROM dw.fact_sales f JOIN dw.dim_date d ON d.date_key = f.date_key JOIN dw.dim_customer c ON c.customer_key = f.customer_key JOIN dw.dim_product p ON p.product_key = f.product_key WHERE c.region IN ('Beogradski region', 'Region Vojvodine') AND p.category IN ('Elektronika', 'Sport') AND d.year = (SELECT max(year) - 1 FROM dw.dim_date d2 WHERE d2.date_key IN (SELECT date_key FROM dw.fact_sales)) GROUP BY c.region, p.category, d.quarter ORDER BY 1, 2, 3
+Beogradski region | Elektronika | 1 | 24996912.95
+Beogradski region | Elektronika | 2 | 26168089.40
+Beogradski region | Elektronika | 3 | 29597854.96
+Beogradski region | Elektronika | 4 | 41947001.99
+Beogradski region | Sport | 1 | 23025265.42
+Beogradski region | Sport | 2 | 24269434.40
+Beogradski region | Sport | 3 | 24326418.90
+Beogradski region | Sport | 4 | 32099806.16
+Region Vojvodine | Elektronika | 1 | 55592313.53
+Region Vojvodine | Elektronika | 2 | 57454036.83
+Region Vojvodine | Elektronika | 3 | 59534521.77
+Region Vojvodine | Elektronika | 4 | 82757110.88
+Region Vojvodine | Sport | 1 | 46222635.47
+Region Vojvodine | Sport | 2 | 50804546.44
+Region Vojvodine | Sport | 3 | 54678709.63
+Region Vojvodine | Sport | 4 | 68113775.68
+
+-- Top-3 proizvoda po kategoriji (RANK) (78.6 ms)
+SELECT category, product_name, revenue, rnk FROM ( SELECT p.category, p.product_name, SUM(f.revenue) AS revenue, RANK() OVER (PARTITION BY p.category ORDER BY SUM(f.revenue) DESC) AS rnk FROM dw.fact_sales f JOIN dw.dim_date d ON d.date_key = f.date_key JOIN dw.dim_customer c ON c.customer_key = f.customer_key JOIN dw.dim_product p ON p.product_key = f.product_key GROUP BY p.category, p.product_name) t WHERE rnk <= 3 ORDER BY category, rnk
+Elektronika | Proizvod 00008 | 216238743.84 | 1
+Elektronika | Proizvod 00024 | 100991187.36 | 2
+Elektronika | Proizvod 00032 | 81581367.00 | 3
+Hrana | Proizvod 00006 | 172849013.56 | 1
+Hrana | Proizvod 00046 | 92979911.16 | 2
+Hrana | Proizvod 00038 | 71539395.52 | 3
+Igračke | Proizvod 00005 | 231005119.96 | 1
+Igračke | Proizvod 00045 | 84334440.82 | 2
+Igračke | Proizvod 00061 | 82814002.60 | 3
+Knjige | Proizvod 00001 | 422862218.88 | 1
+Knjige | Proizvod 00017 | 149060349.19 | 2
+Knjige | Proizvod 00025 | 123480403.40 | 3
+Kozmetika | Proizvod 00031 | 111996177.93 | 1
+Kozmetika | Proizvod 00007 | 74055957.36 | 2
+Kozmetika | Proizvod 00079 | 65280667.14 | 3
+Kućni aparati | Proizvod 00004 | 240891213.48 | 1
+Kućni aparati | Proizvod 00012 | 181958167.00 | 2
+Kućni aparati | Proizvod 00020 | 96862439.85 | 3
+Odeća | Proizvod 00002 | 266105243.73 | 1
+Odeća | Proizvod 00018 | 168184114.16 | 2
+Odeća | Proizvod 00034 | 76723685.60 | 3
+Sport | Proizvod 00019 | 64560420.06 | 1
+Sport | Proizvod 00115 | 53091084.00 | 2
+Sport | Proizvod 00099 | 48551896.96 | 3
+
+-- Međugodišnji rast (LAG, YoY %) (73.0 ms)
+SELECT category, year, revenue, ROUND(100.0 * (revenue - LAG(revenue) OVER w) / LAG(revenue) OVER w, 1) AS yoy_pct FROM (SELECT p.category, d.year, SUM(f.revenue) AS revenue FROM dw.fact_sales f JOIN dw.dim_date d ON d.date_key = f.date_key JOIN dw.dim_customer c ON c.customer_key = f.customer_key JOIN dw.dim_product p ON p.product_key = f.product_key GROUP BY p.category, d.year) t WINDOW w AS (PARTITION BY category ORDER BY year) ORDER BY category, year
+Elektronika | 2023 | 403337060.32 | *
+Elektronika | 2024 | 603384716.14 | 49.6
+Elektronika | 2025 | 721437263.70 | 19.6
+Elektronika | 2026 | 980122283.98 | 35.9
+Hrana | 2023 | 403402240.06 | *
+Hrana | 2024 | 611671230.31 | 51.6
+Hrana | 2025 | 702249102.70 | 14.8
+Hrana | 2026 | 971347251.13 | 38.3
+Igračke | 2023 | 398272781.35 | *
+Igračke | 2024 | 602822471.63 | 51.4
+Igračke | 2025 | 714039474.29 | 18.4
+Igračke | 2026 | 957341885.19 | 34.1
+Knjige | 2023 | 488394715.04 | *
+Knjige | 2024 | 740046478.15 | 51.5
+Knjige | 2025 | 871164414.05 | 17.7
+Knjige | 2026 | 1119173507.97 | 28.5
+Kozmetika | 2023 | 377086508.86 | *
+Kozmetika | 2024 | 572085638.12 | 51.7
+Kozmetika | 2025 | 666334325.84 | 16.5
+Kozmetika | 2026 | 936471550.34 | 40.5
+Kućni aparati | 2023 | 475459685.94 | *
+Kućni aparati | 2024 | 701187219.70 | 47.5
+Kućni aparati | 2025 | 825596061.19 | 17.7
+Kućni aparati | 2026 | 1112094030.26 | 34.7
+Odeća | 2023 | 449255098.39 | *
+Odeća | 2024 | 657107027.39 | 46.3
+Odeća | 2025 | 766858301.71 | 16.7
+Odeća | 2026 | 1048172326.80 | 36.7
+Sport | 2023 | 344651681.27 | *
+Sport | 2024 | 529181179.56 | 53.5
+Sport | 2025 | 626244257.57 | 18.3
+Sport | 2026 | 852069075.55 | 36.1
+
+-- Kumulativni prihod po mesecima (poslednjih 12) (60.6 ms)
+SELECT d.year, d.month, SUM(f.revenue) AS revenue, SUM(SUM(f.revenue)) OVER (ORDER BY d.year, d.month) AS cumulative FROM dw.fact_sales f JOIN dw.dim_date d ON d.date_key = f.date_key JOIN dw.dim_customer c ON c.customer_key = f.customer_key JOIN dw.dim_product p ON p.product_key = f.product_key WHERE f.date_key >= to_char(current_date - interval '12 months', 'YYYYMMDD')::int GROUP BY d.year, d.month ORDER BY d.year, d.month
+2025 | 9 | 15341869.11 | 15341869.11
+2025 | 10 | 481129381.47 | 496471250.58
+2025 | 11 | 703975346.79 | 1200446597.37
+2025 | 12 | 729689532.59 | 1930136129.96
+2026 | 1 | 496326511.80 | 2426462641.76
+2026 | 2 | 449599800.15 | 2876062441.91
+2026 | 3 | 496492969.82 | 3372555411.73
+2026 | 4 | 486384867.48 | 3858940279.21
+2026 | 5 | 510186662.44 | 4369126941.65
+2026 | 6 | 492024685.05 | 4861151626.70
+2026 | 7 | 513915371.62 | 5375066998.32
+2026 | 8 | 528264823.04 | 5903331821.36
+2026 | 9 | 4003596219.82 | 9906928041.18

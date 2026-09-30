@@ -1,0 +1,61 @@
+-- Faza 4 (Podešavanje konfiguracije), upit Q17 [prepisan]
+-- Podešavanja: {'work_mem': '256MB', 'max_parallel_workers_per_gather': '4', 'random_page_cost': '1.1', 'effective_cache_size': '8GB', 'jit': 'off'}
+WITH part_avg AS (
+    SELECT l_partkey AS agg_partkey, 0.2 * AVG(l_quantity) AS avg_qty
+    FROM lineitem
+    JOIN part ON p_partkey = l_partkey
+    WHERE p_brand = 'Brand#23'
+      AND p_container = 'MED BOX'
+    GROUP BY l_partkey
+)
+SELECT SUM(l_extendedprice) / 7.0 AS avg_yearly
+FROM lineitem
+JOIN part_avg ON l_partkey = agg_partkey
+WHERE l_quantity < avg_qty
+
+Finalize Aggregate  (cost=29721.17..29721.18 rows=1 width=32) (actual time=49.493..53.581 rows=1.00 loops=1)
+  Buffers: shared hit=21291
+  ->  Gather  (cost=29720.74..29721.15 rows=4 width=32) (actual time=49.374..53.575 rows=5.00 loops=1)
+        Workers Planned: 4
+        Workers Launched: 4
+        Buffers: shared hit=21291
+        ->  Partial Aggregate  (cost=28720.74..28720.75 rows=1 width=32) (actual time=36.678..36.680 rows=1.00 loops=5)
+              Buffers: shared hit=21291
+              ->  Hash Join  (cost=2085.93..28709.99 rows=4297 width=8) (actual time=4.379..36.667 rows=31.20 loops=5)
+                    Hash Cond: (lineitem.l_partkey = lineitem_1.l_partkey)
+                    Join Filter: (lineitem.l_quantity < ((0.2 * avg(lineitem_1.l_quantity))))
+                    Rows Removed by Join Filter: 336
+                    Buffers: shared hit=21291
+                    ->  Parallel Index Only Scan using idx_lineitem_shipdate on lineitem  (cost=0.43..25443.20 rows=450002 width=17) (actual time=0.038..22.916 rows=360000.20 loops=5)
+                          Heap Fetches: 0
+                          Index Searches: 1
+                          Buffers: shared hit=10808
+                    ->  Hash  (cost=2064.13..2064.13 rows=1710 width=36) (actual time=3.120..3.121 rows=61.00 loops=5)
+                          Buckets: 2048  Batches: 1  Memory Usage: 19kB
+                          Buffers: shared hit=10483
+                          ->  HashAggregate  (cost=2038.48..2064.13 rows=1710 width=36) (actual time=3.091..3.110 rows=61.00 loops=5)
+                                Group Key: lineitem_1.l_partkey
+                                Batches: 1  Memory Usage: 89kB
+                                Buffers: shared hit=10483
+                                Worker 0:  Batches: 1  Memory Usage: 89kB
+                                Worker 1:  Batches: 1  Memory Usage: 89kB
+                                Worker 2:  Batches: 1  Memory Usage: 89kB
+                                Worker 3:  Batches: 1  Memory Usage: 89kB
+                                ->  Nested Loop  (cost=2.40..2029.93 rows=1710 width=9) (actual time=0.087..2.807 rows=1835.00 loops=5)
+                                      Buffers: shared hit=10483
+                                      ->  Bitmap Heap Scan on part  (cost=1.97..63.27 rows=57 width=4) (actual time=0.072..0.176 rows=61.00 loops=5)
+                                            Recheck Cond: ((p_brand = 'Brand#23'::bpchar) AND (p_container = 'MED BOX'::bpchar))
+                                            Heap Blocks: exact=59
+                                            Buffers: shared hit=389
+                                            ->  Bitmap Index Scan on idx_part_brand_container  (cost=0.00..1.96 rows=57 width=0) (actual time=0.020..0.020 rows=61.00 loops=5)
+                                                  Index Cond: ((p_brand = 'Brand#23'::bpchar) AND (p_container = 'MED BOX'::bpchar))
+                                                  Index Searches: 5
+                                                  Buffers: shared hit=14
+                                      ->  Index Scan using idx_lineitem_partkey on lineitem lineitem_1  (cost=0.43..34.20 rows=30 width=9) (actual time=0.004..0.041 rows=30.08 loops=305)
+                                            Index Cond: (l_partkey = part.p_partkey)
+                                            Index Searches: 305
+                                            Buffers: shared hit=10094
+Planning:
+  Buffers: shared hit=14
+Planning Time: 0.229 ms
+Execution Time: 53.657 ms

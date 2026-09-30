@@ -1,0 +1,23 @@
+-- Faza 1 (ANALYZE - statistika), upit Q6 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT SUM(l_extendedprice * l_discount) AS revenue
+FROM lineitem
+WHERE l_shipdate >= DATE '1994-01-01'
+  AND l_shipdate < DATE '1994-01-01' + INTERVAL '1 year'
+  AND l_discount BETWEEN 0.06 - 0.01 AND 0.06 + 0.01
+  AND l_quantity < 24
+
+Finalize Aggregate  (cost=50127.12..50127.13 rows=1 width=32) (actual time=49.209..53.648 rows=1.00 loops=1)
+  Buffers: shared hit=13589 read=18592
+  ->  Gather  (cost=50126.90..50127.11 rows=2 width=32) (actual time=49.100..53.641 rows=3.00 loops=1)
+        Workers Planned: 2
+        Workers Launched: 2
+        Buffers: shared hit=13589 read=18592
+        ->  Partial Aggregate  (cost=49126.90..49126.91 rows=1 width=32) (actual time=39.787..39.787 rows=1.00 loops=3)
+              Buffers: shared hit=13589 read=18592
+              ->  Parallel Seq Scan on lineitem  (cost=0.00..49056.02 rows=14176 width=12) (actual time=0.104..38.835 rows=11432.67 loops=3)
+                    Filter: ((l_shipdate >= '1994-01-01'::date) AND (l_shipdate < '1995-01-01 00:00:00'::timestamp without time zone) AND (l_discount >= 0.05) AND (l_discount <= 0.07) AND (l_quantity < '24'::numeric))
+                    Rows Removed by Filter: 588568
+                    Buffers: shared hit=13589 read=18592
+Planning Time: 0.085 ms
+Execution Time: 53.666 ms

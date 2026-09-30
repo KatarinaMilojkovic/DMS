@@ -1,0 +1,84 @@
+-- Faza 0 (Baseline), upit Q18 [original]
+-- Podešavanja: {'work_mem': '4MB', 'max_parallel_workers_per_gather': '2', 'random_page_cost': '4', 'effective_cache_size': '4GB', 'jit': 'on'}
+SELECT c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, SUM(l_quantity)
+FROM customer, orders, lineitem
+WHERE o_orderkey IN (SELECT l_orderkey
+                     FROM lineitem
+                     GROUP BY l_orderkey
+                     HAVING SUM(l_quantity) > 300)
+  AND c_custkey = o_custkey
+  AND o_orderkey = l_orderkey
+GROUP BY c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice
+ORDER BY o_totalprice DESC, o_orderdate
+LIMIT 100
+
+Limit  (cost=327400.24..553183.65 rows=100 width=130) (actual time=1253.800..2563.568 rows=12.00 loops=1)
+  Buffers: shared hit=74721 read=63263 written=148, temp read=96758 written=67182
+  ->  GroupAggregate  (cost=327400.24..38582170180.40 rows=17087988 width=130) (actual time=1253.799..2563.557 rows=12.00 loops=1)
+        Group Key: orders.o_totalprice, orders.o_orderdate, customer.c_name, customer.c_custkey, orders.o_orderkey
+        Buffers: shared hit=74721 read=63263 written=148, temp read=96758 written=67182
+        ->  Nested Loop  (cost=327400.24..38443742543.96 rows=9214269106 width=116) (actual time=1120.930..2563.438 rows=84.00 loops=1)
+              Join Filter: (orders.o_orderkey = lineitem.l_orderkey)
+              Rows Removed by Join Filter: 21599928
+              Buffers: shared hit=74721 read=63263 written=148, temp read=96758 written=67182
+              ->  Gather Merge  (cost=327400.24..660874.51 rows=2863264 width=102) (actual time=862.233..862.310 rows=12.00 loops=1)
+                    Workers Planned: 2
+                    Workers Launched: 2
+                    Buffers: shared hit=59688 read=46115 written=148, temp read=43584 written=62348
+                    ->  Sort  (cost=326400.21..329382.78 rows=1193027 width=102) (actual time=841.334..841.338 rows=4.00 loops=3)
+                          Sort Key: orders.o_totalprice DESC, orders.o_orderdate, customer.c_name, customer.c_custkey, orders.o_orderkey
+                          Sort Method: quicksort  Memory: 25kB
+                          Buffers: shared hit=59688 read=46115 written=148, temp read=43584 written=62348
+                          Worker 0:  Sort Method: quicksort  Memory: 25kB
+                          Worker 1:  Sort Method: quicksort  Memory: 25kB
+                          ->  Merge Join  (cost=57499.40..75492.83 rows=1193027 width=102) (actual time=840.233..841.309 rows=4.00 loops=3)
+                                Merge Cond: (orders.o_custkey = customer.c_custkey)
+                                Buffers: shared hit=59634 read=46115 written=148, temp read=43584 written=62348
+                                ->  Sort  (cost=55689.82..55739.02 rows=19680 width=34) (actual time=833.981..833.984 rows=4.00 loops=3)
+                                      Sort Key: orders.o_custkey
+                                      Sort Method: quicksort  Memory: 25kB
+                                      Buffers: shared hit=57036 read=46115 written=148, temp read=43584 written=62348
+                                      Worker 0:  Sort Method: quicksort  Memory: 25kB
+                                      Worker 1:  Sort Method: quicksort  Memory: 25kB
+                                      ->  Merge Join  (cost=53795.31..54286.20 rows=19680 width=34) (actual time=826.511..833.977 rows=4.00 loops=3)
+                                            Merge Cond: (orders.o_orderkey = lineitem_1.l_orderkey)
+                                            Buffers: shared hit=57036 read=46115 written=148, temp read=43584 written=62348
+                                            ->  Sort  (cost=11954.98..12101.85 rows=58748 width=30) (actual time=21.472..27.401 rows=144708.33 loops=3)
+                                                  Sort Key: orders.o_orderkey
+                                                  Sort Method: external merge  Disk: 7632kB
+                                                  Buffers: shared read=6714, temp read=1868 written=1873
+                                                  Worker 0:  Sort Method: external merge  Disk: 3792kB
+                                                  Worker 1:  Sort Method: external merge  Disk: 3520kB
+                                                  ->  Parallel Seq Scan on orders  (cost=0.00..7301.48 rows=58748 width=30) (actual time=0.065..8.721 rows=150000.00 loops=3)
+                                                        Buffers: shared read=6714
+                                            ->  Sort  (cost=41840.33..41840.50 rows=67 width=4) (actual time=802.545..802.546 rows=12.00 loops=3)
+                                                  Sort Key: lineitem_1.l_orderkey
+                                                  Sort Method: quicksort  Memory: 25kB
+                                                  Buffers: shared hit=57036 read=39401 written=148, temp read=41716 written=60475
+                                                  Worker 0:  Sort Method: quicksort  Memory: 25kB
+                                                  Worker 1:  Sort Method: quicksort  Memory: 25kB
+                                                  ->  HashAggregate  (cost=41835.30..41838.30 rows=67 width=4) (actual time=360.309..802.525 rows=12.00 loops=3)
+                                                        Group Key: lineitem_1.l_orderkey
+                                                        Filter: (sum(lineitem_1.l_quantity) > '300'::numeric)
+                                                        Batches: 37  Memory Usage: 8297kB  Disk Usage: 66392kB
+                                                        Rows Removed by Filter: 449988
+                                                        Buffers: shared hit=57036 read=39401 written=148, temp read=41716 written=60475
+                                                        Worker 0:  Batches: 37  Memory Usage: 8297kB  Disk Usage: 66400kB
+                                                        Worker 1:  Batches: 37  Memory Usage: 8297kB  Disk Usage: 66400kB
+                                                        ->  Seq Scan on lineitem lineitem_1  (cost=0.00..38617.20 rows=643620 width=22) (actual time=0.056..76.996 rows=1800001.00 loops=3)
+                                                              Buffers: shared hit=57036 read=39401 written=148
+                                ->  Sort  (cost=1809.59..1839.90 rows=12124 width=72) (actual time=5.983..6.553 rows=27504.33 loops=3)
+                                      Sort Key: customer.c_custkey
+                                      Sort Method: quicksort  Memory: 3294kB
+                                      Buffers: shared hit=2598
+                                      Worker 0:  Sort Method: quicksort  Memory: 3294kB
+                                      Worker 1:  Sort Method: quicksort  Memory: 3294kB
+                                      ->  Seq Scan on customer  (cost=0.00..987.24 rows=12124 width=72) (actual time=0.066..2.977 rows=45000.00 loops=3)
+                                            Buffers: shared hit=2598
+              ->  Materialize  (cost=0.00..45607.30 rows=643620 width=22) (actual time=0.011..89.171 rows=1800001.00 loops=12)
+                    Storage: Disk  Maximum Storage: 38672kB
+                    Buffers: shared hit=15033 read=17148, temp read=53174 written=4834
+                    ->  Seq Scan on lineitem  (cost=0.00..38617.20 rows=643620 width=22) (actual time=0.077..95.589 rows=1800001.00 loops=1)
+                          Buffers: shared hit=15033 read=17148
+Planning Time: 0.243 ms
+Execution Time: 2571.179 ms
