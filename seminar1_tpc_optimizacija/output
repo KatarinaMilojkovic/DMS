@@ -1,0 +1,258 @@
+PS C:\Users\Katarina\Desktop\GitHub\DMS> .venv\Scripts\activate 
+(.venv) PS C:\Users\Katarina\Desktop\GitHub\DMS> python seminar1_tpc_optimizacija/tpc_optimizacija.py --user postgres --password postgres   
+
+==============================================================================
+=== KORAK 1: Priprema okruženja
+==============================================================================
+    PostgreSQL verzija : 18.4
+    Server             : localhost:5432, korisnik postgres
+    Faktor skaliranja  : SF = 0.3
+    Merenja po upitu   : 1 zagrevanje + 3 merenja (medijana), timeout 60 s
+    Kreirana baza 'tpc_demo'.
+    Serverska podešavanja: shared_buffers=128MB, max_worker_processes=8, max_parallel_workers=8
+    Broj CPU jezgara (klijent): 12
+
+==============================================================================
+=== KORAK 2: Kreiranje TPC-H-like šeme
+==============================================================================
+    Kreirane tabele: region, nation, supplier, part, partsupp, customer, orders, lineitem
+    Bez primarnih ključeva i indeksa; autovacuum_enabled = false (nema automatske statistike).
+
+==============================================================================
+=== KORAK 3: Generisanje podataka (SF = 0.3)
+==============================================================================
+    region                    0.00 s
+    nation                    0.00 s
+    supplier                  0.01 s
+    part                      0.19 s
+    partsupp                  0.67 s
+    customer                  0.15 s
+    orders (privremeno)       0.56 s
+    lineitem                  7.20 s
+    orders                    2.28 s
+    čišćenje                  0.00 s
+
+    tabela    broj redova  veličina
+    --------  -----------  --------
+    region    5            8.0 kB  
+    nation    25           8.0 kB  
+    supplier  3,000        488.0 kB
+    part      60,000       10.2 MB 
+    partsupp  240,000      26.8 MB 
+    customer  45,000       6.8 MB  
+    orders    450,000      52.5 MB 
+    lineitem  1,800,001    251.5 MB
+    Ukupno vreme učitavanja: 11.1 s
+
+==============================================================================
+=== KORAK 4: Faza 0 - Baseline
+==============================================================================
+    Tabele bez PK/indeksa, bez statistike (autovacuum isključen), podrazumevana konfiguracija.
+    Procena kardinalnosti (optimizator vs. stvarnost):
+      lineitem: l_returnflag = 'R'                                   procena     3,218  stvarno   445,031  greška ×138.3
+      lineitem: l_shipdate BETWEEN DATE '1995-09-01' AND DATE '1995- procena     3,218  stvarno    22,303  greška ×6.9
+      orders: o_orderpriority = '1-URGENT' AND o_orderdate >= DATE ' procena       235  stvarno    21,710  greška ×92.4
+      customer: c_mktsegment = 'BUILDING'                            procena        61  stvarno     9,011  greška ×147.7
+
+    Q1   Izveštaj o cenama (pricing summary)              543.1 ms  blokova   32,255 temp 16,207  [original] OK
+    Q3   Prioritet isporuke (shipping priority)           241.1 ms  blokova   41,597 temp 6,537  [original] OK
+    Q5   Promet lokalnih dobavljača (local supplier v      91.0 ms  blokova   41,695  [original] OK
+    Q6   Prognoza promene prihoda (forecasting revenu      56.3 ms  blokova   32,181  [original] OK
+    Q10  Vraćena roba (returned item reporting)           109.0 ms  blokova   39,776 temp 3,195  [original] OK
+    Q12  Načini isporuke i prioritet (shipping modes)      87.8 ms  blokova   38,909  [original] OK
+    Q14  Efekat promocije (promotion effect)              221.2 ms  blokova   33,486  [original] OK
+    Q17  Prihod od malih porudžbina (small-quantity-o     >=60.0 s  blokova        -  [original] TIMEOUT
+    Q18  Veliki kupci (large volume customer)            1698.9 ms  blokova  137,984 temp 163,940  [original] OK
+    Geometrijska sredina faze: 374.5 ms
+
+==============================================================================
+=== KORAK 5: Faza 1 - ANALYZE - statistika
+==============================================================================
+    ANALYZE prikuplja statistiku (histogrami, MCV, n_distinct) - optimizator bolje procenjuje kardinalnost.
+    Primena optimizacije...
+      trajanje pripreme: 0.74 s (8 naredbi)
+    Procena kardinalnosti (optimizator vs. stvarnost):
+      lineitem: l_returnflag = 'R'                                   procena   447,000  stvarno   445,031  greška ×1.0
+      lineitem: l_shipdate BETWEEN DATE '1995-09-01' AND DATE '1995- procena    22,543  stvarno    22,303  greška ×1.0
+      orders: o_orderpriority = '1-URGENT' AND o_orderdate >= DATE ' procena    21,453  stvarno    21,710  greška ×1.0
+      customer: c_mktsegment = 'BUILDING'                            procena     8,970  stvarno     9,011  greška ×1.0
+
+    Q1   Izveštaj o cenama (pricing summary)              267.8 ms  blokova   32,195  [original] OK
+    Q3   Prioritet isporuke (shipping priority)            75.7 ms  blokova   41,523  [original] OK
+    Q5   Promet lokalnih dobavljača (local supplier v      65.9 ms  blokova   41,687  [original] OK
+    Q6   Prognoza promene prihoda (forecasting revenu      56.1 ms  blokova   32,181  [original] OK
+    Q10  Vraćena roba (returned item reporting)            81.3 ms  blokova   41,496  [original] OK
+    Q12  Načini isporuke i prioritet (shipping modes)      79.4 ms  blokova   38,909  [original] OK
+    Q14  Efekat promocije (promotion effect)              155.0 ms  blokova   33,486  [original] OK
+    Q17  Prihod od malih porudžbina (small-quantity-o     >=60.0 s  blokova        -  [original] TIMEOUT
+    Q18  Veliki kupci (large volume customer)             739.0 ms  blokova  137,927 temp 81,001  [original] OK
+    Geometrijska sredina faze: 246.2 ms
+
+==============================================================================
+=== KORAK 6: Faza 2 - Indeksi
+==============================================================================
+    PK, FK, indeksi nad FK kolonama, indeks za filter po datumu, pokrivajući i kompozitni indeks + VACUUM.
+    Primena optimizacije...
+      trajanje pripreme: 4.42 s (30 naredbi)
+
+    Q1   Izveštaj o cenama (pricing summary)              268.5 ms  blokova   32,195  [original] OK
+    Q3   Prioritet isporuke (shipping priority)           108.7 ms  blokova  187,315  [original] OK
+    Q5   Promet lokalnih dobavljača (local supplier v      65.5 ms  blokova   65,579  [original] OK
+    Q6   Prognoza promene prihoda (forecasting revenu      18.9 ms  blokova    1,643  [original] OK
+    Q10  Vraćena roba (returned item reporting)            79.9 ms  blokova   41,040  [original] OK
+    Q12  Načini isporuke i prioritet (shipping modes)      75.1 ms  blokova   38,909  [original] OK
+    Q14  Efekat promocije (promotion effect)              146.8 ms  blokova   33,486  [original] OK
+    Q17  Prihod od malih porudžbina (small-quantity-o      79.7 ms  blokova   94,362  [original] OK
+    Q18  Veliki kupci (large volume customer)             507.4 ms  blokova  125,300  [original] OK
+    Geometrijska sredina faze: 102.9 ms
+
+==============================================================================
+=== KORAK 7: Faza 3 - Prepisivanje upita
+==============================================================================
+    Q14: funkcija nad kolonom -> opseg (sargable); Q17: korelisani podupit -> JOIN sa preagregacijom.
+
+    Q1   Izveštaj o cenama (pricing summary)              267.3 ms  blokova   32,195  [original] OK
+    Q3   Prioritet isporuke (shipping priority)           108.2 ms  blokova  187,315  [original] OK
+    Q5   Promet lokalnih dobavljača (local supplier v      65.8 ms  blokova   65,579  [original] OK
+    Q6   Prognoza promene prihoda (forecasting revenu      18.9 ms  blokova    1,643  [original] OK
+    Q10  Vraćena roba (returned item reporting)            79.9 ms  blokova   41,040  [original] OK
+    Q12  Načini isporuke i prioritet (shipping modes)      78.3 ms  blokova   38,909  [original] OK
+    Q14  Efekat promocije (promotion effect)               10.7 ms  blokova    1,443  [prepisan] OK
+    Q17  Prihod od malih porudžbina (small-quantity-o      50.0 ms  blokova   38,422  [prepisan] OK
+    Q18  Veliki kupci (large volume customer)             504.1 ms  blokova  126,167  [original] OK
+    Geometrijska sredina faze: 73.3 ms
+
+==============================================================================
+=== KORAK 8: Faza 4 - Podešavanje konfiguracije
+==============================================================================
+    work_mem=256MB, max_parallel_workers_per_gather=4, random_page_cost=1.1, jit=off.
+
+    Q1   Izveštaj o cenama (pricing summary)              191.6 ms  blokova   32,209  [original] OK
+    Q3   Prioritet isporuke (shipping priority)           107.0 ms  blokova  187,285  [original] OK
+    Q5   Promet lokalnih dobavljača (local supplier v      67.5 ms  blokova   65,579  [original] OK
+    Q6   Prognoza promene prihoda (forecasting revenu      19.4 ms  blokova    1,643  [original] OK
+    Q10  Vraćena roba (returned item reporting)            77.7 ms  blokova   79,262  [original] OK
+    Q12  Načini isporuke i prioritet (shipping modes)      66.5 ms  blokova   69,637  [original] OK
+    Q14  Efekat promocije (promotion effect)               11.4 ms  blokova    1,443  [prepisan] OK
+    Q17  Prihod od malih porudžbina (small-quantity-o      49.8 ms  blokova   21,291  [prepisan] OK
+    Q18  Veliki kupci (large volume customer)             395.4 ms  blokova   71,942  [original] OK
+    Geometrijska sredina faze: 68.0 ms
+
+==============================================================================
+=== KORAK 9: Faza 5 - Materijalizovani pogled
+==============================================================================
+    Q1 čita unapred agregirane podatke po danu iz materijalizovanog pogleda.
+    Primena optimizacije...
+      trajanje pripreme: 0.63 s (3 naredbi)
+
+    Q1   Izveštaj o cenama (pricing summary)                1.0 ms  blokova       64  [mat. pogled] OK
+    Q3   Prioritet isporuke (shipping priority)           109.6 ms  blokova  187,285  [original] OK
+    Q5   Promet lokalnih dobavljača (local supplier v      64.9 ms  blokova   65,579  [original] OK
+    Q6   Prognoza promene prihoda (forecasting revenu      19.6 ms  blokova    1,645  [original] OK
+    Q10  Vraćena roba (returned item reporting)            77.4 ms  blokova   79,262  [original] OK
+    Q12  Načini isporuke i prioritet (shipping modes)      77.8 ms  blokova   69,637  [original] OK
+    Q14  Efekat promocije (promotion effect)               11.0 ms  blokova    1,443  [prepisan] OK
+    Q17  Prihod od malih porudžbina (small-quantity-o     106.9 ms  blokova   21,291  [prepisan] OK
+    Q18  Veliki kupci (large volume customer)             398.7 ms  blokova   71,942  [original] OK
+    Geometrijska sredina faze: 41.9 ms
+
+==============================================================================
+=== KORAK 10: Throughput test (paralelni tokovi upita, finalna faza)
+==============================================================================
+    1 tok(a): 9 upita za 0.95 s -> 34,045 upita/sat (Throughput-like = 10,213.4)
+    2 tok(a): 18 upita za 1.08 s -> 60,196 upita/sat (Throughput-like = 18,058.7)
+    4 tok(a): 36 upita za 1.45 s -> 89,482 upita/sat (Throughput-like = 26,844.5)
+
+==============================================================================
+=== KORAK 11: Zbirni rezultati
+==============================================================================
+    upit        F0 Baseline  F1 ANALYZE  F2 Indeksi  F3 Prepisani  F4 Konfig.  F5 Mat. pogled  ubrzanje
+    ----------  -----------  ----------  ----------  ------------  ----------  --------------  --------
+    Q1          543.1 ms     267.8 ms    268.5 ms    267.3 ms      191.6 ms    1.0 ms          ×532.4  
+    Q3          241.1 ms     75.7 ms     108.7 ms    108.2 ms      107.0 ms    109.6 ms        ×2.2    
+    Q5          91.0 ms      65.9 ms     65.5 ms     65.8 ms       67.5 ms     64.9 ms         ×1.4    
+    Q6          56.3 ms      56.1 ms     18.9 ms     18.9 ms       19.4 ms     19.6 ms         ×2.9    
+    Q10         109.0 ms     81.3 ms     79.9 ms     79.9 ms       77.7 ms     77.4 ms         ×1.4    
+    Q12         87.8 ms      79.4 ms     75.1 ms     78.3 ms       66.5 ms     77.8 ms         ×1.1    
+    Q14         221.2 ms     155.0 ms    146.8 ms    10.7 ms       11.4 ms     11.0 ms         ×20.0   
+    Q17         >=60.0 s     >=60.0 s    79.7 ms     50.0 ms       49.8 ms     106.9 ms        >=×561.2
+    Q18         1698.9 ms    739.0 ms    507.4 ms    504.1 ms      395.4 ms    398.7 ms        ×4.3    
+    geomean     374.5 ms     246.2 ms    102.9 ms    73.3 ms       68.0 ms     41.9 ms         ×8.9    
+    Power-like  2,884        4,387       10,500      14,744        15,884      25,746                  
+    
+    Power-like = 3600 · SF / geomean[s] (inspirisano TPC-H Power@Size metrikom).
+
+    Regresije (upit sporiji za >20% nego u prethodnoj fazi) - uporedite planove:
+      Q3: F1 ANALYZE 75.7 ms -> F2 Indeksi 108.7 ms   (planovi/faza1_Q3.txt vs planovi/faza2_Q3.txt)
+      Q17: F4 Konfig. 49.8 ms -> F5 Mat. pogled 106.9 ms   (planovi/faza4_Q17.txt vs planovi/faza5_Q17.txt)
+
+    --- Plan Q14: Faza 1 (pre) ---
+      Finalize Aggregate  (cost=48507.12..48507.13 rows=1 width=32) (actual time=179.385..183.564 rows=1.00 loops=1)
+        Buffers: shared hit=14911 read=18575
+        ->  Gather  (cost=48506.88..48507.09 rows=2 width=64) (actual time=179.127..183.554 rows=3.00 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=14911 read=18575
+              ->  Partial Aggregate  (cost=47506.88..47506.89 rows=1 width=64) (actual time=132.796..132.798 rows=1.00 loops=3)
+                    Buffers: shared hit=14911 read=18575
+                    ->  Parallel Hash Join  (cost=2099.12..47441.25 rows=3750 width=33) (actual time=3.298..131.544 rows=7434.33 loops=3)
+                          Hash Cond: (lineitem.l_partkey = part.p_partkey)
+                          Buffers: shared hit=14911 read=18575
+                          ->  Parallel Seq Scan on lineitem  (cost=0.00..45306.01 rows=3750 width=16) (actual time=0.084..125.436 rows=7434.33 loops=3)
+                                Filter: (date_trunc('month'::text, (l_shipdate)::timestamp with time zone) = '1995-09-01'::date)
+                                Rows Removed by Filter: 592566
+    --- Plan Q14: Faza 3 (posle) ---
+      Aggregate  (cost=4242.12..4242.13 rows=1 width=32) (actual time=13.357..13.358 rows=1.00 loops=1)
+        Buffers: shared hit=1443
+        ->  Hash Join  (cost=2655.43..3810.04 rows=24690 width=33) (actual time=6.394..10.373 rows=22303.00 loops=1)
+              Hash Cond: (lineitem.l_partkey = part.p_partkey)
+              Buffers: shared hit=1443
+              ->  Index Only Scan using idx_lineitem_shipdate on lineitem  (cost=0.43..1090.23 rows=24690 width=16) (actual time=0.004..0.998 rows=22303.00 loops=1)
+                    Index Cond: ((l_shipdate >= '1995-09-01'::date) AND (l_shipdate < '1995-10-01 00:00:00'::timestamp without time zone))
+                    Heap Fetches: 0
+                    Index Searches: 1
+                    Buffers: shared hit=138
+              ->  Hash  (cost=1905.00..1905.00 rows=60000 width=25) (actual time=6.337..6.337 rows=60000.00 loops=1)
+                    Buckets: 65536  Batches: 1  Memory Usage: 3978kB
+                    Buffers: shared hit=1305
+                    ->  Seq Scan on part  (cost=0.00..1905.00 rows=60000 width=25) (actual time=0.005..2.827 rows=60000.00 loops=1)
+
+    --- Plan Q17: Faza 1 (pre) ---
+      Aggregate  (cost=100125606.22..100125606.23 rows=1 width=32)
+        ->  Hash Join  (cost=2205.76..100125604.69 rows=610 width=8)
+              Hash Cond: (lineitem.l_partkey = part.p_partkey)
+              Join Filter: (lineitem.l_quantity < (SubPlan 1))
+              ->  Seq Scan on lineitem  (cost=0.00..50181.02 rows=1800002 width=17)
+              ->  Hash  (cost=2205.00..2205.00 rows=61 width=4)
+                    ->  Seq Scan on part  (cost=0.00..2205.00 rows=61 width=4)
+                          Filter: ((p_brand = 'Brand#23'::bpchar) AND (p_container = 'MED BOX'::bpchar))
+              SubPlan 1
+                ->  Aggregate  (cost=54681.11..54681.12 rows=1 width=32)
+                      ->  Seq Scan on lineitem lineitem_1  (cost=0.00..54681.03 rows=31 width=5)
+                            Filter: (l_partkey = part.p_partkey)
+    --- Plan Q17: Faza 3 (posle) ---
+      Finalize Aggregate  (cost=49881.75..49881.76 rows=1 width=32) (actual time=54.553..58.472 rows=1.00 loops=1)
+        Buffers: shared hit=12821 read=25601
+        ->  Gather  (cost=49881.53..49881.74 rows=2 width=32) (actual time=54.397..58.464 rows=3.00 loops=1)
+              Workers Planned: 2
+              Workers Launched: 2
+              Buffers: shared hit=12821 read=25601
+              ->  Partial Aggregate  (cost=48881.53..48881.54 rows=1 width=32) (actual time=44.493..44.495 rows=1.00 loops=3)
+                    Buffers: shared hit=12821 read=25601
+                    ->  Hash Join  (cost=7213.77..48863.62 rows=7162 width=8) (actual time=3.423..44.480 rows=52.00 loops=3)
+                          Hash Cond: (lineitem.l_partkey = lineitem_1.l_partkey)
+                          Join Filter: (lineitem.l_quantity < ((0.2 * avg(lineitem_1.l_quantity))))
+                          Rows Removed by Join Filter: 560
+                          Buffers: shared hit=12821 read=25601
+                          ->  Parallel Seq Scan on lineitem  (cost=0.00..39681.04 rows=750004 width=17) (actual time=0.057..20.016 rows=600000.33 loops=3)
+
+    Cena optimizacije (prostor):
+      podaci (pre indeksa): 348.3 MB; indeksi: 161.0 MB (46% podataka); mat. pogled: 528.0 kB (3,817 redova)
+
+    Rezultati sačuvani u: C:\Users\Katarina\Desktop\GitHub\DMS\seminar1_tpc_optimizacija\rezultati
+      - izvestaj.md, rezultati.csv, planovi/ (54 fajlova)
+      - grafik_upiti_po_fazama.png
+      - grafik_geomean_po_fazama.png
+      - grafik_throughput.png
+    Baza 'tpc_demo' obrisana (za zadržavanje koristite --keep).
+    Ukupno trajanje: 189 s

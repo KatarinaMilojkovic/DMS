@@ -1,0 +1,198 @@
+PS C:\Users\Katarina\Desktop\GitHub\DMS> .venv\Scripts\activate                              
+(.venv) PS C:\Users\Katarina\Desktop\GitHub\DMS> python seminar3_oltp_olap/oltp_olap_demo.py          --user postgres --password postgres   
+
+==============================================================================
+=== KORAK 1: Priprema baze
+==============================================================================
+    PostgreSQL 18.4; kreirana baza 'oltp_olap_demo'.
+    OLTP klijenata: 4, OLAP niti (test interferencije): 2, trajanje testa: 15 s
+
+==============================================================================
+=== KORAK 2: OLTP šema u 3NF + istorijski podaci
+==============================================================================
+    Tabele: region -> city -> customer; category -> product; orders -> order_item, payment
+    Ograničenja: PK, FK, UNIQUE, CHECK (stock >= 0, quantity > 0, status IN (...))
+    region, grad, kategorija     0.00 s
+    customer                     0.12 s
+    product                      0.01 s
+    orders                       1.23 s
+    order_item                   3.84 s
+    orders.total                 1.71 s
+    payment                      1.18 s
+    VACUUM ANALYZE               0.29 s
+
+    tabela           redova   veličina (sa indeksima)
+    ---------------  -------  -----------------------
+    oltp.order_item  500,000  48.6 MB                
+    oltp.orders      200,000  40.5 MB                
+    oltp.payment     194,028  23.3 MB                
+    oltp.customer    20,000   3.4 MB                 
+    oltp.product     2,000    240.0 kB               
+    oltp.region      4        80.0 kB                
+    oltp.category    8        80.0 kB                
+    oltp.city        17       64.0 kB                
+
+==============================================================================
+=== KORAK 3: OLTP radno opterećenje (kratke konkurentne transakcije)
+==============================================================================
+    Mešavina: 50% nova narudžbina, 30% provera statusa (čitanje po PK), 20% isporuka (UPDATE).
+    Nova narudžbina: SELECT ... FOR UPDATE (zaliha) -> INSERT orders/order_item/payment -> UPDATE stock.
+    Trajanje: 15.0 s; potvrđeno (COMMIT): 90,536; poništeno (ROLLBACK - nedovoljna zaliha): 8,276; deadlock/greške: 0
+    Propusna moć: 6,035 TPS; latencija p50 0.39 ms, p95 1.40 ms, p99 1.62 ms
+
+    transakcija        broj    prosek ms  p50 ms  p95 ms  p99 ms
+    -----------------  ------  ---------  ------  ------  ------
+    nova_narudzbina    49,445  0.92       0.95    1.50    1.74  
+    status_narudzbine  29,609  0.37       0.36    0.45    0.52  
+    isporuka           19,758  0.19       0.19    0.26    0.31  
+
+    Provera ACID svojstava:
+      [OK] Konzistentnost: početna zaliha - trenutna = prodato: 198,807 = 198,807
+      [OK] Konzistentnost: nijedan proizvod nema negativnu zalihu: 0 proizvoda
+      [OK] Atomičnost: nema narudžbine bez stavki ili bez uplate: 0 narudžbina
+      [OK] Konzistentnost: orders.total = suma stavki: 0 odstupanja
+      [OK] Izolacija: FOR UPDATE + fiksni redosled zaključavanja: 0 deadlock-a
+      Trajnost (durability): COMMIT se potvrđuje tek kada je WAL zapis upisan na disk (synchronous_commit).
+
+==============================================================================
+=== KORAK 4: Obrasci pristupa podacima: OLTP upit vs analitički upit
+==============================================================================
+    upit                                     vreme      pročitano redova  blokova (8kB)  vraćeno  tip pristupa                       
+    ---------------------------------------  ---------  ----------------  -------------  -------  -----------------------------------
+    OLTP: narudžbina po PK                   0.02 ms    2                 7              1.0      Index Scan                         
+    OLTP: zaliha proizvoda                   0.01 ms    1                 3              1.0      Index Scan                         
+    OLTP: poslednjih 5 narudžbina kupca      0.03 ms    14                10             5.0      Bitmap Heap Scan, Bitmap Index Scan
+    OLAP: prihod po regionu/kategoriji/god.  411.64 ms  906,507           8,667          128.0    Seq Scan                           
+    OLTP upiti čitaju nekoliko redova preko indeksa; analitički upit skenira cele tabele i agregira.
+
+==============================================================================
+=== KORAK 5: ETL: izgradnja skladišta podataka (star schema)
+==============================================================================
+    dw.fact_sales (granularnost: stavka narudžbine) + dimenzije dim_date, dim_customer, dim_product
+    ETL korak                                              redova   trajanje
+    -----------------------------------------------------  -------  --------
+    Load dw.dim_date                                       1,734    0.01 s  
+    Load dw.dim_customer                                   20,000   0.05 s  
+    Load dw.dim_product                                    2,000    0.00 s  
+    Load dw.fact_sales (order_id 1..241169)                584,407  5.12 s  
+    Indeksi (BRIN date_key, B-tree product_key) + ANALYZE           0.26 s  
+    Materijalizovani pogled dw.mv_sales_month              1,440    0.10 s  
+    fact_sales: 45.3 MB; BRIN indeks: 24.0 kB (B-tree nad product_key: 4.0 MB) - BRIN je mali jer su podaci učitani po datumu.
+
+==============================================================================
+=== KORAK 6: OLAP upiti nad zvezdastom šemom
+==============================================================================
+
+    ROLLUP (drill-down godina > kvartal > mesec)  [235.2 ms, 65 redova]
+      Hijerarhija vremena: međuzbirovi po godini i kvartalu + ukupan zbir.
+        2023 | * | * | 3,339,859,771
+        2024 | * | * | 5,017,485,961
+        2025 | * | * | 5,893,923,201
+        2026 | * | * | 7,976,791,911
+        * | * | * | 22,228,060,844
+
+    CUBE (region × kategorija)  [275.0 ms, 45 redova]
+      Sve kombinacije agregacije: region, kategorija, region×kategorija i ukupno.
+        Beogradski region | * | 3,810,546,251
+        Region Južne i Istočne Srbije | * | 4,331,269,886
+        Region Šumadije i Zapadne Srbije | * | 6,226,356,101
+        Region Vojvodine | * | 7,859,888,606
+        * | * | 22,228,060,844
+
+    Slice (kategorija = Elektronika)  [31.4 ms, 16 redova]
+      Jedna vrednost jedne dimenzije -> 'isečak' kocke po regionu i godini.
+        Beogradski region | 2023 | 69,056,514
+        Beogradski region | 2024 | 106,513,842
+        Beogradski region | 2025 | 122,709,859
+        Beogradski region | 2026 | 168,996,391
+        Region Južne i Istočne Srbije | 2023 | 80,081,942
+        Region Južne i Istočne Srbije | 2024 | 116,037,680
+
+    Dice (2 regiona × 2 kategorije × poslednja godina)  [62.6 ms, 16 redova]
+      Podskup vrednosti više dimenzija -> 'kockica' po kvartalu.
+        Beogradski region | Elektronika | 1 | 24,996,913
+        Beogradski region | Elektronika | 2 | 26,168,089
+        Beogradski region | Elektronika | 3 | 29,597,855
+        Beogradski region | Elektronika | 4 | 41,947,002
+        Beogradski region | Sport | 1 | 23,025,265
+        Beogradski region | Sport | 2 | 24,269,434
+
+    Top-3 proizvoda po kategoriji (RANK)  [78.6 ms, 24 redova]
+      Prozorska funkcija RANK() OVER (PARTITION BY kategorija).
+        Elektronika | Proizvod 00008 | 216,238,744 | 1
+        Elektronika | Proizvod 00024 | 100,991,187 | 2
+        Elektronika | Proizvod 00032 | 81,581,367 | 3
+        Hrana | Proizvod 00006 | 172,849,014 | 1
+        Hrana | Proizvod 00046 | 92,979,911 | 2
+        Hrana | Proizvod 00038 | 71,539,396 | 3
+
+    Međugodišnji rast (LAG, YoY %)  [73.0 ms, 32 redova]
+      Poređenje sa prethodnom godinom pomoću LAG().
+        Elektronika | 2023 | 403,337,060 | *
+        Elektronika | 2024 | 603,384,716 | 49.6
+        Elektronika | 2025 | 721,437,264 | 19.6
+        Elektronika | 2026 | 980,122,284 | 35.9
+        Hrana | 2023 | 403,402,240 | *
+        Hrana | 2024 | 611,671,230 | 51.6
+
+    Kumulativni prihod po mesecima (poslednjih 12)  [60.6 ms, 13 redova]
+      SUM() OVER (ORDER BY ...) - tekući zbir; filter po date_key koristi BRIN indeks.
+        2026 | 4 | 486,384,867 | 3,858,940,279
+        2026 | 5 | 510,186,662 | 4,369,126,942
+        2026 | 6 | 492,024,685 | 4,861,151,627
+        2026 | 7 | 513,915,372 | 5,375,066,998
+        2026 | 8 | 528,264,823 | 5,903,331,821
+        2026 | 9 | 4,003,596,220 | 9,906,928,041
+    (`*` označava međuzbir/ukupno u ROLLUP/CUBE; kompletni rezultati: olap_rezultati.txt)
+
+    Isto poslovno pitanje - 'prihod po regionu, kategoriji i godini':
+    model            vreme     spajanja  redova
+    ---------------  --------  --------  ------
+    3NF (OLTP šema)  340.5 ms  6         128   
+    Star schema      86.4 ms   3         128   
+    Mat. pogled      0.4 ms    0         128   
+    Rezultati sva tri upita su IDENTIČNI.
+
+==============================================================================
+=== KORAK 7: Interferencija: OLTP sam vs OLTP + OLAP na istom sistemu
+==============================================================================
+    a) 4 OLTP klijenata, 15 s ...
+       6,254 TPS, p95 1.35 ms
+    b) 4 OLTP klijenata + 2 niti koje neprestano izvršavaju analitički upit nad OLTP tabelama ...
+       4,953 TPS, p95 1.67 ms (izvršeno 44 OLAP upita)
+    Pad propusne moći: 21%; p95 latencija ×1.2
+    Zaključak: analitika na produkcionoj OLTP bazi troši CPU, I/O i keš koji trebaju transakcijama -
+    zato se OLAP izdvaja u posebno skladište podataka (DW) koje se puni ETL procesom.
+
+==============================================================================
+=== KORAK 8: Inkrementalni ETL i kašnjenje podataka u skladištu
+==============================================================================
+    Današnje narudžbine - OLTP: 98,829 (7,862,542,365 RSD), DW: 41,169 (3,529,083,260 RSD)
+    DW 'kasni' - ne vidi narudžbine nastale posle poslednjeg ETL-a.
+    Inkrementalni ETL (watermark order_id > 241169): 125,013 novih redova činjenica za 1.26 s; REFRESH MATERIALIZED VIEW: 0.11 s
+    Posle ETL-a - OLTP: 98,829 (7,862,542,365 RSD), DW: 98,829 (7,862,542,365 RSD)
+    Skladište je sinhronizovano sa OLTP sistemom.
+
+==============================================================================
+=== KORAK 9: Zbirni rezultati: OLTP vs OLAP
+==============================================================================
+    osobina                  OLTP (izmereno)                       OLAP (izmereno)                  
+    -----------------------  ------------------------------------  ---------------------------------
+    Tipična operacija        INSERT/UPDATE/SELECT - čita 2 red(a)  agregacija - čita 906,507 redova 
+    Broj operacija           6,035 transakcija/s                   8.6 upita/s (1 nit)              
+    Latencija                p50 0.39 ms                           prosek 117 ms po upitu           
+    Model podataka           3NF (normalizovan)                    star schema (denormalizovan)     
+    Blokova (8 kB) po upitu  7                                     8,667                            
+    Pristup podacima         Index Scan po ključu                  Seq Scan + Hash Join + agregacija
+    Svežina podataka         trenutna                              do poslednjeg ETL-a              
+
+    Rezultati sačuvani u: C:\Users\Katarina\Desktop\GitHub\DMS\seminar3_oltp_olap\rezultati
+      - izvestaj.md
+      - rezultati.csv
+      - olap_rezultati.txt
+      - grafik_oltp_latencija.png
+      - grafik_interferencija.png
+      - grafik_3nf_vs_star.png
+      - grafik_olap_upiti.png
+    Baza 'oltp_olap_demo' obrisana (za zadržavanje koristite --keep).
+    Ukupno trajanje: 68 s

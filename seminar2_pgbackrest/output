@@ -1,0 +1,196 @@
+PS C:\Users\Katarina\Desktop\GitHub\DMS> .venv\Scripts\activate                                             
+(.venv) PS C:\Users\Katarina\Desktop\GitHub\DMS> python seminar2_pgbackrest/pgbackrest_full_vs_incr.py --block-incr
+
+==============================================================================
+=== KORAK 1: Provera preduslova
+==============================================================================
+pgBackRest radi samo na Linux/Unix sistemima. Na Windows-u pokrenite skriptu u WSL-u.
+(.venv) PS C:\Users\Katarina\Desktop\GitHub\DMS> 
+
+
+
+(.venv-wsl) katarina@DESKTOP-1VC1D31:/mnt/c/Users/Katarina/Desktop/GitHub/DMS$ python3 seminar2_pgbackrest/pgbackrest_full_vs_incr.py --block-incr --lab ~/pgbr_lab
+
+==============================================================================
+=== KORAK 1: Provera preduslova
+==============================================================================
+    pgBackRest : pgBackRest 2.58.0
+    PostgreSQL : postgres (PostgreSQL) 18.6 (Ubuntu 18.6-0ubuntu0.26.04.1) (/usr/lib/postgresql/18/bin)
+    Korisnik   : katarina
+
+==============================================================================
+=== KORAK 2: Kreiranje laboratorijskog PostgreSQL klastera
+==============================================================================
+    initdb (sa --data-checksums) završen za 0.6 s: /home/katarina/pgbr_lab/data
+
+==============================================================================
+=== KORAK 3: Konfiguracija WAL arhiviranja i pgBackRest-a
+==============================================================================
+    postgresql.conf: wal_level=replica, archive_mode=on, archive_command=pgbackrest archive-push
+    pgbackrest.conf: /home/katarina/pgbr_lab/pgbackrest.conf
+      | [global]
+      | repo1-path=/home/katarina/pgbr_lab/repo1
+      | repo1-retention-full=2
+      | repo2-path=/home/katarina/pgbr_lab/repo2
+      | repo2-retention-full=2
+      | repo2-bundle=y
+      | repo2-block=y
+      | compress-type=lz4
+      | start-fast=y
+      | log-path=/home/katarina/pgbr_lab/log
+      | lock-path=/home/katarina/pgbr_lab/lock
+      | spool-path=/home/katarina/pgbr_lab/spool
+      | log-level-console=info
+      | log-level-file=detail
+      | [demo]
+      | pg1-path=/home/katarina/pgbr_lab/data
+      | pg1-port=5433
+      | pg1-socket-path=/home/katarina/pgbr_lab/socket
+    Klaster pokrenut (port 5433, socket /home/katarina/pgbr_lab/socket).
+      | INFO: stanza-create command end: completed successfully (40ms)
+    stanza-create: 0.04 s
+      | INFO: WAL segment 000000010000000000000001 successfully archived to '/home/katarina/pgbr_lab/repo1/archive/demo/18-1/0000000100000000/000000010000000000000001-5b8373d47d27a1dde89f15a778fa066e872874d1.lz4' on repo1
+      | INFO: WAL segment 000000010000000000000001 successfully archived to '/home/katarina/pgbr_lab/repo2/archive/demo/18-1/0000000100000000/000000010000000000000001-5b8373d47d27a1dde89f15a778fa066e872874d1.lz4' on repo2
+      | INFO: check command end: completed successfully (110ms)
+    check (provera arhiviranja WAL-a): 0.11 s
+
+==============================================================================
+=== KORAK 4: Punjenje test podataka (~500 MB)
+==============================================================================
+    tabela      redova     veličina  fajl (relativno u PGDATA)
+    ----------  ---------  --------  -------------------------
+    big_static  1,800,000  242.5 MB  base/5/16384
+    hot_table   900,000    135.2 MB  base/5/16392
+    event_log   300,000    42.6 MB   base/5/16400
+    Veličina baze: 492.5 MB; učitavanje: 6.7 s
+    Uloge tabela: big_static se NIKAD ne menja, hot_table dobija male izmene, event_log samo INSERT.
+
+==============================================================================
+=== KORAK 5: FULL backup
+==============================================================================
+    Full backup kopira SVE fajlove klastera - nezavisan je od drugih backup-a.
+    pgbackrest --type=full --repo=1 backup ...
+      | INFO: new backup label = 20260930-015817F
+      | INFO: full backup size = 507.6MB, file total = 986
+      -> 20260930-015817F: 3.18 s, kopirano 507.6 MB od 507.6 MB, u repozitorijumu 180.7 MB
+    pgbackrest --type=full --repo=2 backup ...
+      | INFO: new backup label = 20260930-015820F
+      | INFO: full backup size = 507.6MB, file total = 986
+      -> 20260930-015820F: 1.54 s, kopirano 507.6 MB od 507.6 MB, u repozitorijumu 181.0 MB
+
+==============================================================================
+=== KORAK 6: INCR #1 - posle malog INSERT-a u event_log
+==============================================================================
+    Dodato 15,000 redova u event_log (~0.5% redova baze).
+    Incremental backup kopira samo fajlove promenjene od PRETHODNOG backup-a (bilo kog tipa).
+    pgbackrest --type=incr --repo=1 backup ...
+      | INFO: new backup label = 20260930-015817F_20260930-015825I
+      | INFO: incr backup size = 51MB, file total = 986
+      -> 20260930-015817F_20260930-015825I: 0.83 s, kopirano 51.0 MB od 509.2 MB, u repozitorijumu 18.7 MB, zavisi od: 20260930-015817F
+    pgbackrest --type=incr --repo=2 backup ...
+      | INFO: new backup label = 20260930-015820F_20260930-015826I
+      | INFO: incr backup size = 50.8MB, file total = 986
+      -> 20260930-015820F_20260930-015826I: 0.93 s, kopirano 50.8 MB od 509.2 MB, u repozitorijumu 0.8 MB, zavisi od: 20260930-015820F
+
+==============================================================================
+=== KORAK 7: INCR #2 - posle UPDATE-a 1% redova u hot_table
+==============================================================================
+    Izmenjeno 9,000 redova (1%) u hot_table; fajl tabele base/5/16392 ima 136.6 MB.
+    pgBackRest (file-level) poredi fajlove po veličini/vremenu izmene: izmenjen fajl se kopira CEO,
+    iako je promenjen samo mali broj njegovih stranica (8 kB blokova).
+    pgbackrest --type=incr --repo=1 backup ...
+      | INFO: new backup label = 20260930-015817F_20260930-015830I
+      | INFO: incr backup size = 156.1MB, file total = 986
+      -> 20260930-015817F_20260930-015830I: 1.13 s, kopirano 156.1 MB od 510.8 MB, u repozitorijumu 54.8 MB, zavisi od: 20260930-015817F_20260930-015825I
+    pgbackrest --type=incr --repo=2 backup ...
+      | INFO: new backup label = 20260930-015820F_20260930-015831I
+      | INFO: incr backup size = 156.1MB, file total = 986
+      -> 20260930-015820F_20260930-015831I: 0.79 s, kopirano 156.1 MB od 510.8 MB, u repozitorijumu 1.1 MB, zavisi od: 20260930-015820F_20260930-015826I
+
+==============================================================================
+=== KORAK 8: Restore INCR #2 u novi direktorijum i verifikacija
+==============================================================================
+    Vraća se backup 20260930-015817F_20260930-015830I (lanac: 20260930-015817F -> 20260930-015817F_20260930-015825I -> 20260930-015817F_20260930-015830I)
+    --type=immediate: oporavak se zaustavlja čim baza postane konzistentna (stanje u trenutku backup-a).
+      | INFO: restore size = 510.8MB, file total = 986
+      | INFO: restore command end: completed successfully (2521ms)
+    pgbackrest restore: 2.52 s, start + WAL recovery: 0.41 s
+    Očekivano : big_static=1,800,000 redova/6eef2ce3, hot_table=900,000 redova/6fabe4ed, event_log=315,000 redova/13ba3ce2
+    Vraćeno   : big_static=1,800,000 redova/6eef2ce3, hot_table=900,000 redova/6fabe4ed, event_log=315,000 redova/13ba3ce2
+    VERIFIKACIJA USPEŠNA - podaci identični stanju u trenutku INCR #2.
+
+==============================================================================
+=== KORAK 9: DIFF backup i INCR #3
+==============================================================================
+    Differential backup kopira sve što je promenjeno od poslednjeg FULL backup-a.
+    pgbackrest --type=diff --repo=1 backup ...
+      | INFO: new backup label = 20260930-015817F_20260930-015841D
+      | INFO: diff backup size = 207.1MB, file total = 986
+      -> 20260930-015817F_20260930-015841D: 0.83 s, kopirano 207.1 MB od 510.8 MB, u repozitorijumu 73.5 MB, zavisi od: 20260930-015817F
+    pgbackrest --type=diff --repo=2 backup ...
+      | INFO: new backup label = 20260930-015820F_20260930-015842D
+      | INFO: diff backup size = 206.9MB, file total = 986
+      -> 20260930-015820F_20260930-015842D: 0.76 s, kopirano 206.9 MB od 510.8 MB, u repozitorijumu 1.9 MB, zavisi od: 20260930-015820F
+    pgbackrest --type=incr --repo=1 backup ...
+      | INFO: new backup label = 20260930-015817F_20260930-015846I
+      | INFO: incr backup size = 50.9MB, file total = 986
+      -> 20260930-015817F_20260930-015846I: 0.84 s, kopirano 50.9 MB od 510.9 MB, u repozitorijumu 18.7 MB, zavisi od: 20260930-015817F_20260930-015841D
+    pgbackrest --type=incr --repo=2 backup ...
+      | INFO: new backup label = 20260930-015820F_20260930-015847I
+      | INFO: incr backup size = 50.9MB, file total = 986
+      -> 20260930-015820F_20260930-015847I: 0.92 s, kopirano 50.9 MB od 510.9 MB, u repozitorijumu 0.1 MB, zavisi od: 20260930-015820F_20260930-015842D
+    INCR #3 se oslanja na DIFF (a DIFF samo na FULL): za restore trebaju 3 backup-a, ne 5.
+
+==============================================================================
+=== KORAK 10: Point-in-time recovery (PITR) posle slučajnog DROP TABLE
+==============================================================================
+    Kreiran restore point 'pre_katastrofa'.
+    !!! Simulirana ljudska greška: DROP TABLE hot_table
+    Klaster zaustavljen; restore u ISTI direktorijum sa --delta (menjaju se samo razlike).
+      | INFO: restore size = 510.9MB, file total = 986
+      | INFO: restore command end: completed successfully (653ms)
+    restore: 0.66 s, start + replay WAL-a do restore point-a: 0.41 s
+    Pre greške : big_static=1,800,000 redova/6eef2ce3, hot_table=900,000 redova/6fabe4ed, event_log=316,000 redova/951dc0e8
+    Posle PITR : big_static=1,800,000 redova/6eef2ce3, hot_table=900,000 redova/6fabe4ed, event_log=316,000 redova/951dc0e8
+    Nova vremenska linija (timeline): 2
+    PITR USPEŠAN - hot_table je vraćena.
+
+==============================================================================
+=== KORAK 11: Politika zadržavanja (retention) i zavisnosti backup-a
+==============================================================================
+    Pravi se novi FULL backup, zatim expire sa repo1-retention-full=1:
+      | INFO: new backup label = 20260930-015856F
+      | INFO: repo1: expire full backup set 20260930-015817F, 20260930-015817F_20260930-015825I, 20260930-015817F_20260930-015830I, 20260930-015817F_20260930-015841D, 20260930-015817F_20260930-015846I
+      | INFO: repo1: 18-1 remove archive, start = 0000000100000000, stop = 000000020000000000000055
+    Obrisano 5 backup-a: 20260930-015817F, 20260930-015817F_20260930-015825I, 20260930-015817F_20260930-015830I, 20260930-015817F_20260930-015841D, 20260930-015817F_20260930-015846I
+    Zajedno sa starim FULL-om obrisani su i svi DIFF/INCR backup-i koji od njega zavise -
+    inkrementalni backup bez svog punog backup-a nije upotrebljiv.
+
+==============================================================================
+=== KORAK 12: Zbirni rezultati
+==============================================================================
+    backup   repo       tip   trajanje  veličina baze  kopirano (delta)  % baze  u repozitorijumu  zavisi od            
+    -------  ---------  ----  --------  -------------  ----------------  ------  ----------------  ---------------------------------
+    FULL     1 (file)   FULL  3.18 s    507.6 MB       507.6 MB          100.0%  180.7 MB          -                    
+    FULL     2 (block)  FULL  1.54 s    507.6 MB       507.6 MB          100.0%  181.0 MB          -                    
+    INCR #1  1 (file)   INCR  0.83 s    509.2 MB       51.0 MB           10.0%   18.7 MB           20260930-015817F     
+    INCR #1  2 (block)  INCR  0.93 s    509.2 MB       50.8 MB           10.0%   0.8 MB            20260930-015820F     
+    INCR #2  1 (file)   INCR  1.13 s    510.8 MB       156.1 MB          30.6%   54.8 MB           20260930-015817F_20260930-015825I
+    INCR #2  2 (block)  INCR  0.79 s    510.8 MB       156.1 MB          30.6%   1.1 MB            20260930-015820F_20260930-015826I
+    DIFF     1 (file)   DIFF  0.83 s    510.8 MB       207.1 MB          40.6%   73.5 MB           20260930-015817F     
+    DIFF     2 (block)  DIFF  0.76 s    510.8 MB       206.9 MB          40.5%   1.9 MB            20260930-015820F     
+    INCR #3  1 (file)   INCR  0.84 s    510.9 MB       50.9 MB           10.0%   18.7 MB           20260930-015817F_20260930-015841D
+    INCR #3  2 (block)  INCR  0.92 s    510.9 MB       50.9 MB           10.0%   0.1 MB            20260930-015820F_20260930-015842D
+
+    restore test                                         pgbackrest restore  start + recovery  verifikacija
+    ---------------------------------------------------  ------------------  ----------------  ------------
+    Restore INCR #2 (20260930-015817F_20260930-015830I)  2.52 s              0.41 s            OK
+    PITR do 'pre_katastrofa' (--delta)                   0.66 s              0.41 s            OK
+    matplotlib nije instaliran - grafici se preskaču (pip install matplotlib).
+
+    Rezultati sačuvani u: /mnt/c/Users/Katarina/Desktop/GitHub/DMS/seminar2_pgbackrest/rezultati
+      - izvestaj.md
+      - backupi.csv
+      - pgbackrest_info.txt
+    Klaster zaustavljen; fajlovi laboratorije ostaju u /home/katarina/pgbr_lab (--cleanup za brisanje).
+    Ukupno trajanje: 53 s
